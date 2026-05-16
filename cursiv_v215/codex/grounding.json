@@ -1,0 +1,105 @@
+{
+  "document": "Adaptive Personal Response Engine v2",
+  "version": "2.0",
+  "core_law": "Signal → Person Model → Pressure Test → Threshold Detection → Response Adaptation → Recheck",
+
+  "person_model": {
+    "fields": [
+      "current_state",
+      "recent_history",
+      "baseline_energy",
+      "pressure_load",
+      "recovery_status",
+      "active_relationships",
+      "current_commitments",
+      "known_triggers",
+      "support_network",
+      "goal_alignment"
+    ],
+    "description": "Dynamic model of the person's current situation, updated with each interaction"
+  },
+
+  "threshold_system": {
+    "states": [
+      "thriving",
+      "engaged",
+      "neutral",
+      "mildly_stressed",
+      "stressed",
+      "overwhelmed",
+      "crisis_approaching",
+      "crisis",
+      "recovery"
+    ],
+    "transitions": 12,
+    "abort_at": "crisis",
+    "description": "9-state machine that selects appropriate response mode based on person's current state"
+  },
+
+  "response_modes": {
+    "survival": {
+      "trigger_states": ["crisis"],
+      "max_words": 50,
+      "tone": "direct and calm",
+      "priority": "immediate safety"
+    },
+    "recovery_support": {
+      "trigger_states": ["overwhelmed", "crisis_approaching"],
+      "max_words": 300,
+      "tone": "grounded and steady",
+      "priority": "stabilization"
+    },
+    "gentle_guidance": {
+      "trigger_states": ["stressed"],
+      "max_words": 500,
+      "tone": "warm and structured",
+      "priority": "reduction of load"
+    },
+    "standard": {
+      "trigger_states": ["mildly_stressed", "neutral"],
+      "max_words": 800,
+      "tone": "clear and helpful",
+      "priority": "task completion"
+    },
+    "engaged_partner": {
+      "trigger_states": ["engaged"],
+      "max_words": 1200,
+      "tone": "collaborative and exploratory",
+      "priority": "co-creation"
+    },
+    "deep_exploration": {
+      "trigger_states": ["thriving"],
+      "max_words": 2000,
+      "tone": "expansive and visionary",
+      "priority": "frontier thinking"
+    },
+    "integration": {
+      "trigger_states": ["recovery"],
+      "max_words": 400,
+      "tone": "reflective and consolidating",
+      "priority": "pattern recognition from recent experience"
+    },
+    "emergency_bypass": {
+      "trigger_states": ["crisis"],
+      "max_words": 30,
+      "tone": "immediate",
+      "priority": "bypass all deliberation"
+    }
+  },
+
+  "pressure_tests": [
+    "Is the person making decisions under duress?",
+    "Is the current request consistent with their stated long-term goals?",
+    "Has the person's baseline energy dropped below their normal threshold?",
+    "Are there active external pressures distorting their perception?",
+    "Is this an emergency that bypasses normal routing?"
+  ],
+
+  "pattern_detection": [
+    "Repeated requests for the same type of help (signals unresolved root issue)",
+    "Energy signature declining across multiple interactions",
+    "Increasing urgency without increasing clarity",
+    "Disconnection between stated goals and requested actions",
+    "Recovery state after high-pressure period"
+  ]
+}

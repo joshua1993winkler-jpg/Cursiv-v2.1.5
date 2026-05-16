@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "cursiv"
+version = "2.1.5"
+description = "The Sovereign Agent Temple — local-first AI agent operating system"
+authors = [{name = "Joshua Winkler", email = "joshua.1993.winkler@gmail.com"}]
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "streamlit>=1.32.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4"]
+ollama = []  # No extra deps — uses urllib only
+xai = []     # No extra deps — uses urllib only
+openai = []  # No extra deps — uses urllib only
+
+[project.scripts]
+cursiv-forge = "cursiv_v215.forge.factory:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cursiv_v215*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
