@@ -1,10 +1,9 @@
 """
 Cursiv v2.1.5 — Sacred UI
 
-Streamlit skin over the original Cursiv-v2 backend.
-All backend logic is unchanged from cursiv.webapp —
-weave_payload, chat_payload, sovereign_payload, suggested_prompts.
-Only the presentation layer is new.
+Exact functional replica of Cursiv Living System (v2) with upgraded Sacred aesthetic.
+Two tabs: Create & Chat · Sovereign Wrapper
+Backend: weave_payload, chat_payload, sovereign_payload — unchanged from Cursiv-v2.
 """
 
 from __future__ import annotations
@@ -12,11 +11,12 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # ── Path setup ────────────────────────────────────────────────────────────────
-_REPO_ROOT = Path(__file__).parent.parent.parent          # Cursiv-v2.1.5/
-_CURSIV_V2 = _REPO_ROOT.parent / "Cursiv-v2"             # ../Cursiv-v2/
+_REPO_ROOT = Path(__file__).parent.parent.parent   # Cursiv-v2.1.5/
+_CURSIV_V2 = _REPO_ROOT.parent / "Cursiv-v2"       # ../Cursiv-v2/
 for _p in [str(_REPO_ROOT), str(_CURSIV_V2)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -27,7 +27,7 @@ except ImportError:
     print("Streamlit not installed. Run: pip install streamlit")
     sys.exit(1)
 
-# ── Import original Cursiv backend (no changes to these) ─────────────────────
+# ── Import original Cursiv-v2 backend (no changes to these) ──────────────────
 try:
     from cursiv.webapp import (
         chat_payload,
@@ -42,143 +42,354 @@ except Exception as _e:
     _BACKEND_ERR = str(_e)
 
 
-# ── Sacred Color Palette ──────────────────────────────────────────────────────
-SACRED = {
-    "void":       "#0A0B0D",
-    "rose_gold":  "#C9A227",
-    "gold":       "#D4AF37",
-    "lapis":      "#1E4D8C",
-    "lapis_glow": "#2E6DC7",
-    "cream":      "#F5EFE4",
-    "deep":       "#12131A",
-    "surface":    "#1A1B23",
-}
+# ── Sacred Palette ────────────────────────────────────────────────────────────
+_V   = "#0A0B0D"   # void
+_D   = "#12131A"   # deep
+_S   = "#1A1B23"   # surface
+_P   = "#1E2030"   # panel
+_RG  = "#C9A227"   # rose gold
+_G   = "#D4AF37"   # gold
+_L   = "#1E4D8C"   # lapis
+_LG  = "#2E6DC7"   # lapis glow
+_CR  = "#F5EFE4"   # cream
+_MU  = "#7A7060"   # muted
+_LN  = "#272838"   # line/border
 
-EYE_SVG = """<svg viewBox="0 0 100 50" xmlns="http://www.w3.org/2000/svg" width="120" height="60">
-  <ellipse cx="50" cy="25" rx="48" ry="22" fill="none" stroke="#C9A227" stroke-width="1.5"/>
-  <circle cx="50" cy="25" r="14" fill="none" stroke="#1E4D8C" stroke-width="1.5"/>
-  <circle cx="50" cy="25" r="8" fill="#1E4D8C" opacity="0.8"/>
-  <circle cx="50" cy="25" r="4" fill="#2E6DC7"/>
-  <circle cx="46" cy="22" r="2" fill="white" opacity="0.6"/>
-  <line x1="2" y1="25" x2="22" y2="25" stroke="#C9A227" stroke-width="0.8" opacity="0.6"/>
-  <line x1="78" y1="25" x2="98" y2="25" stroke="#C9A227" stroke-width="0.8" opacity="0.6"/>
+EYE_SVG = """<svg viewBox="0 0 120 56" xmlns="http://www.w3.org/2000/svg" width="96" height="44">
+  <ellipse cx="60" cy="28" rx="57" ry="24" fill="none" stroke="#C9A227" stroke-width="1.4"/>
+  <ellipse cx="60" cy="28" rx="57" ry="24" fill="none" stroke="#C9A227" stroke-width="6" opacity="0.04"/>
+  <circle cx="60" cy="28" r="15" fill="none" stroke="#1E4D8C" stroke-width="1.4"/>
+  <circle cx="60" cy="28" r="9"  fill="#1E4D8C" opacity="0.9"/>
+  <circle cx="60" cy="28" r="4.5" fill="#2E6DC7"/>
+  <circle cx="56" cy="25" r="2"  fill="white" opacity="0.5"/>
+  <line x1="3"  y1="28" x2="22" y2="28" stroke="#C9A227" stroke-width="0.8" opacity="0.5"/>
+  <line x1="98" y1="28" x2="117" y2="28" stroke="#C9A227" stroke-width="0.8" opacity="0.5"/>
+  <line x1="60" y1="4"  x2="60" y2="12" stroke="#C9A227" stroke-width="0.8" opacity="0.25"/>
+  <line x1="60" y1="44" x2="60" y2="52" stroke="#C9A227" stroke-width="0.8" opacity="0.25"/>
 </svg>"""
 
 SACRED_CSS = f"""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
 
-  .stApp {{
-    background-color: {SACRED['void']};
-    color: {SACRED['cream']};
+  /* ─── Global ─────────────────────────────────────────────── */
+  .stApp {{ background-color:{_V} !important; }}
+  section[data-testid="stSidebar"] {{ background:{_D} !important; border-right:1px solid {_RG}22; }}
+
+  /* ─── Typography ──────────────────────────────────────────── */
+  h1,h2,h3,h4 {{
+    font-family:'Cinzel',serif !important;
+    color:{_RG} !important;
+    letter-spacing:.06em;
   }}
-  .stSidebar {{
-    background-color: {SACRED['deep']} !important;
-    border-right: 1px solid {SACRED['rose_gold']}44;
+  p, li, span, div, .stMarkdown, .element-container p {{
+    font-family:'EB Garamond',serif !important;
+    color:{_CR} !important;
+    font-size:1.06rem;
   }}
-  h1, h2, h3 {{
-    font-family: 'Cinzel', serif !important;
-    color: {SACRED['rose_gold']} !important;
-    letter-spacing: 0.05em;
+  code, pre {{ color:{_RG}cc !important; }}
+
+  /* ─── Tabs ────────────────────────────────────────────────── */
+  .stTabs [data-baseweb="tab-list"] {{
+    background:{_D};
+    border-bottom:1px solid {_RG}33;
+    padding:0 4px;
+    gap:0;
   }}
-  p, li, label, .stMarkdown {{
-    font-family: 'EB Garamond', serif !important;
-    color: {SACRED['cream']} !important;
-    font-size: 1.05rem;
+  .stTabs [data-baseweb="tab"] {{
+    font-family:'Cinzel',serif !important;
+    font-size:.9rem !important;
+    letter-spacing:.07em;
+    color:{_CR}55 !important;
+    background:transparent !important;
+    border-radius:0 !important;
+    padding:13px 28px !important;
+    border-bottom:2px solid transparent !important;
+    transition:all .2s ease !important;
   }}
-  .stButton > button {{
-    background: linear-gradient(135deg, {SACRED['lapis']}, {SACRED['lapis_glow']});
-    color: {SACRED['cream']};
-    border: 1px solid {SACRED['rose_gold']}88;
-    border-radius: 4px;
-    font-family: 'Cinzel', serif;
-    letter-spacing: 0.08em;
-    transition: all 0.3s ease;
+  .stTabs [aria-selected="true"] {{
+    color:{_RG} !important;
+    border-bottom:2px solid {_RG} !important;
   }}
-  .stButton > button:hover {{
-    border-color: {SACRED['rose_gold']};
-    box-shadow: 0 0 12px {SACRED['lapis_glow']}66;
+  .stTabs [data-baseweb="tab"]:hover {{
+    color:{_CR}aa !important;
   }}
+
+  /* ─── Inputs ──────────────────────────────────────────────── */
   .stTextInput > div > div > input,
   .stTextArea > div > div > textarea,
   .stNumberInput > div > div > input {{
-    background-color: {SACRED['surface']};
-    color: {SACRED['cream']};
-    border: 1px solid {SACRED['rose_gold']}44;
-    font-family: 'EB Garamond', serif;
-    border-radius: 4px;
+    background:{_S} !important;
+    color:{_CR} !important;
+    border:1px solid {_LN} !important;
+    border-radius:6px !important;
+    font-family:'EB Garamond',serif !important;
+    font-size:1rem !important;
+    caret-color:{_RG};
   }}
-  .stSelectbox > div > div,
-  .stMultiSelect > div > div {{
-    background-color: {SACRED['surface']};
-    color: {SACRED['cream']};
-    border: 1px solid {SACRED['rose_gold']}44;
+  .stTextInput > div > div > input:focus,
+  .stTextArea > div > div > textarea:focus,
+  .stNumberInput > div > div > input:focus {{
+    border-color:{_RG}66 !important;
+    box-shadow:0 0 0 3px {_RG}14 !important;
+    outline:none !important;
   }}
-  [data-baseweb="tab"] {{
-    font-family: 'Cinzel', serif !important;
-    color: {SACRED['cream']}88 !important;
-    letter-spacing: 0.05em;
+  .stTextInput label,.stTextArea label,.stNumberInput label,
+  .stFileUploader label,.stCheckbox label,.stSelectbox label {{
+    font-family:'Cinzel',serif !important;
+    font-size:.78rem !important;
+    color:{_MU} !important;
+    letter-spacing:.04em;
+    text-transform:uppercase;
   }}
-  [aria-selected="true"] {{
-    color: {SACRED['rose_gold']} !important;
-    border-bottom: 2px solid {SACRED['rose_gold']} !important;
+
+  /* ─── File uploader ───────────────────────────────────────── */
+  [data-testid="stFileUploadDropzone"] {{
+    background:{_S} !important;
+    border:1px dashed {_RG}44 !important;
+    border-radius:8px !important;
+    transition:all .2s ease !important;
   }}
+  [data-testid="stFileUploadDropzone"]:hover {{
+    border-color:{_RG}88 !important;
+    background:{_P} !important;
+  }}
+  [data-testid="stFileUploadDropzone"] p {{
+    color:{_MU} !important;
+    font-size:.9rem !important;
+  }}
+
+  /* ─── Buttons ─────────────────────────────────────────────── */
+  .stButton > button {{
+    font-family:'Cinzel',serif !important;
+    letter-spacing:.07em;
+    border-radius:5px !important;
+    transition:all .22s ease !important;
+    font-size:.88rem !important;
+    padding:10px 20px !important;
+  }}
+  /* Primary / default — Lapis gradient */
+  .stButton > button:not([kind="secondary"]):not([kind="tertiary"]) {{
+    background:linear-gradient(135deg, {_L}, {_LG}) !important;
+    color:{_CR} !important;
+    border:1px solid {_RG}44 !important;
+  }}
+  .stButton > button:not([kind="secondary"]):not([kind="tertiary"]):hover {{
+    border-color:{_RG}bb !important;
+    box-shadow:0 0 16px {_LG}44 !important;
+  }}
+  /* Secondary — dark amber */
+  .stButton > button[kind="secondary"] {{
+    background:linear-gradient(135deg,#221400,#2e1a00) !important;
+    color:{_RG} !important;
+    border:1px solid {_RG}66 !important;
+  }}
+  .stButton > button[kind="secondary"]:hover {{
+    border-color:{_RG} !important;
+    box-shadow:0 0 12px {_RG}33 !important;
+  }}
+  /* Disabled */
+  .stButton > button:disabled {{
+    opacity:.45 !important;
+    cursor:not-allowed !important;
+  }}
+
+  /* ─── Download button ─────────────────────────────────────── */
   .stDownloadButton > button {{
-    background: linear-gradient(135deg, #2d1f00, #4a3000);
-    color: {SACRED['rose_gold']};
-    border: 1px solid {SACRED['rose_gold']}88;
-    font-family: 'Cinzel', serif;
+    background:linear-gradient(135deg,#221400,#2e1a00) !important;
+    color:{_RG} !important;
+    border:1px solid {_RG}77 !important;
+    font-family:'Cinzel',serif !important;
+    letter-spacing:.06em;
+    border-radius:5px !important;
+    padding:10px 20px !important;
+    transition:all .22s ease !important;
   }}
-  .stChatMessage {{
-    background-color: {SACRED['surface']} !important;
-    border: 1px solid {SACRED['rose_gold']}22 !important;
-    border-radius: 6px !important;
+  .stDownloadButton > button:hover {{
+    border-color:{_RG} !important;
+    box-shadow:0 0 14px {_RG}44 !important;
   }}
-  .stChatMessage [data-testid="chatAvatarIcon-user"] {{
-    background-color: {SACRED['lapis']} !important;
+
+  /* ─── Checkbox ────────────────────────────────────────────── */
+  .stCheckbox > label > div:first-child {{
+    background:{_S} !important;
+    border:1px solid {_RG}55 !important;
+    border-radius:3px !important;
   }}
-  .stChatMessage [data-testid="chatAvatarIcon-assistant"] {{
-    background-color: #3d2800 !important;
+  .stCheckbox > label > div:first-child[data-checked="true"] {{
+    background:{_L} !important;
+    border-color:{_LG} !important;
   }}
-  .step-row {{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.25rem 0;
-    font-family: 'EB Garamond', serif;
+  .stCheckbox > label > p {{
+    color:{_CR} !important;
+    font-family:'EB Garamond',serif !important;
+    font-size:1rem !important;
   }}
-  .step-done  {{ color: #4CAF50; }}
-  .step-active {{ color: {SACRED['rose_gold']}; font-weight: bold; }}
-  .step-wait  {{ color: {SACRED['cream']}44; }}
-  .seal {{
-    font-family: monospace;
-    font-size: 0.78rem;
-    color: {SACRED['rose_gold']}aa;
-    word-break: break-all;
+
+  /* ─── Progress bar ────────────────────────────────────────── */
+  div[data-testid="stProgressBar"] > div > div {{
+    background:{_S} !important;
+    border-radius:999px !important;
+    height:10px !important;
   }}
-  .divider {{
-    border: none;
-    border-top: 1px solid {SACRED['rose_gold']}22;
-    margin: 1.5rem 0;
+  div[data-testid="stProgressBar"] > div > div > div {{
+    background:linear-gradient(90deg,{_L},{_LG}) !important;
+    border-radius:999px !important;
+    transition:width .35s ease !important;
   }}
-  .warning-box {{
-    background: #1a0a00;
-    border: 1px solid {SACRED['rose_gold']}66;
-    border-radius: 6px;
-    padding: 1rem;
-    font-family: 'EB Garamond', serif;
-    color: {SACRED['cream']}cc;
-    font-size: 0.95rem;
+
+  /* ─── Chat ────────────────────────────────────────────────── */
+  [data-testid="stChatMessage"] {{
+    background:{_S} !important;
+    border:1px solid {_LN} !important;
+    border-radius:8px !important;
   }}
+  [data-testid="chatAvatarIcon-user"] {{ background:{_L} !important; }}
+  [data-testid="chatAvatarIcon-assistant"] {{ background:#3d2800 !important; }}
+  [data-testid="stChatInput"] > div {{
+    background:{_S} !important;
+    border:1px solid {_RG}44 !important;
+    border-radius:8px !important;
+  }}
+  [data-testid="stChatInput"] textarea {{
+    color:{_CR} !important;
+    font-family:'EB Garamond',serif !important;
+    background:transparent !important;
+  }}
+  [data-testid="stChatInput"] button {{
+    color:{_RG} !important;
+  }}
+
+  /* ─── Number input spinner ────────────────────────────────── */
+  .stNumberInput button {{
+    background:{_S} !important;
+    border-color:{_LN} !important;
+    color:{_CR} !important;
+  }}
+
+  /* ─── Alerts ──────────────────────────────────────────────── */
+  .stAlert {{ border-radius:6px !important; }}
+
+  /* ─── Caption / small text ────────────────────────────────── */
+  .stCaption, small {{ color:{_MU} !important; font-family:'EB Garamond',serif !important; }}
+
+  /* ─── Custom components ───────────────────────────────────── */
+  .s-panel {{
+    background:{_P};
+    border:1px solid {_LN};
+    border-radius:8px;
+    padding:1.1rem 1.3rem;
+    margin-bottom:.6rem;
+  }}
+  .s-pill {{
+    display:inline-flex;
+    align-items:center;
+    padding:4px 12px;
+    background:{_D};
+    color:{_RG};
+    border:1px solid {_RG}44;
+    border-radius:999px;
+    font-family:'Cinzel',serif;
+    font-size:.75rem;
+    letter-spacing:.05em;
+    white-space:nowrap;
+  }}
+  .s-pill.off {{
+    color:{_MU};
+    border-color:{_LN};
+  }}
+  .s-warning {{
+    background:#180800;
+    border:1px solid {_RG}44;
+    border-radius:8px;
+    padding:1rem 1.2rem;
+    display:grid;
+    gap:.5rem;
+  }}
+  .s-warning strong {{
+    font-family:'Cinzel',serif;
+    color:{_RG};
+    font-size:.88rem;
+    letter-spacing:.04em;
+  }}
+  .s-warning p {{
+    color:{_CR}99 !important;
+    font-size:.95rem;
+    margin:0;
+  }}
+  .s-result {{
+    background:{_S};
+    border:1px solid {_RG}22;
+    border-radius:8px;
+    padding:1rem 1.1rem;
+    display:grid;
+    gap:.5rem;
+    font-size:.95rem;
+  }}
+  .s-result strong {{
+    font-family:'Cinzel',serif;
+    color:{_RG};
+    font-size:.88rem;
+    letter-spacing:.04em;
+  }}
+  .s-result .meta {{
+    color:{_CR}cc;
+    font-family:'EB Garamond',serif;
+    font-size:.95rem;
+  }}
+  .s-result code {{
+    display:block;
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
+    background:{_D};
+    border:1px solid {_LN};
+    border-radius:6px;
+    padding:10px 12px;
+    font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;
+    font-size:.78rem;
+    color:{_RG}bb;
+    margin-top:.3rem;
+  }}
+  .s-steps {{ display:grid; gap:.25rem; }}
+  .s-step {{
+    display:flex;
+    align-items:center;
+    gap:.6rem;
+    font-family:'EB Garamond',serif;
+    font-size:.98rem;
+    padding:.15rem 0;
+  }}
+  .s-step.done   {{ color:#4CAF50; }}
+  .s-step.active {{ color:{_RG}; font-weight:600; }}
+  .s-step.wait   {{ color:{_CR}28; }}
+  .s-progress-label {{
+    display:flex;
+    justify-content:space-between;
+    font-family:'EB Garamond',serif;
+    font-size:.9rem;
+    color:{_MU};
+    margin-bottom:.35rem;
+  }}
+  .s-progress-label .phase {{ color:{_RG}; }}
+  .s-divider {{
+    border:none;
+    border-top:1px solid {_RG}1a;
+    margin:1.5rem 0;
+  }}
+  /* Scrollbar */
+  ::-webkit-scrollbar {{ width:5px; height:5px; }}
+  ::-webkit-scrollbar-track {{ background:{_D}; }}
+  ::-webkit-scrollbar-thumb {{ background:{_RG}44; border-radius:3px; }}
+  ::-webkit-scrollbar-thumb:hover {{ background:{_RG}88; }}
 </style>
 """
 
 
-# ── Page setup ────────────────────────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────────────────────
 
 def setup_page() -> None:
     st.set_page_config(
-        page_title="Cursiv — The Sovereign Temple",
+        page_title="Cursiv Living System",
         page_icon="👁",
         layout="wide",
         initial_sidebar_state="collapsed",
@@ -187,117 +398,156 @@ def setup_page() -> None:
 
 
 def render_header() -> None:
-    col1, col2 = st.columns([1, 10])
-    with col1:
+    c1, c2 = st.columns([1, 16])
+    with c1:
         st.markdown(EYE_SVG, unsafe_allow_html=True)
-    with col2:
-        st.markdown("# Cursiv v2.1.5")
+    with c2:
         st.markdown(
-            f'<p style="color:{SACRED["rose_gold"]}88; font-style:italic; margin-top:-0.5rem;">'
-            "The Sovereign Agent Temple — Black • Rose Gold • Glowing Lapis Eye"
+            f'<h1 style="margin:0 0 .15rem; font-size:1.7rem;">Cursiv Living System</h1>'
+            f'<p style="color:{_MU}; margin:0; font-size:.97rem;">'
+            "Interactive agent creation, self-reasoning chat, and Sovereign Wrapper export"
             "</p>",
             unsafe_allow_html=True,
         )
-    st.markdown('<hr class="divider">', unsafe_allow_html=True)
-
+    st.markdown('<hr class="s-divider">', unsafe_allow_html=True)
     if not _BACKEND_OK:
         st.error(
-            f"**Backend unavailable.** Could not import from Cursiv-v2.\n\n"
-            f"Expected path: `{_CURSIV_V2}`\n\n`{_BACKEND_ERR}`"
+            f"**Backend unavailable.** Could not load `cursiv.webapp` from `{_CURSIV_V2}`\n\n"
+            f"```\n{_BACKEND_ERR}\n```"
         )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _uploaded_to_webapp_files(uploaded_files) -> list[dict]:
-    """Convert Streamlit UploadedFile objects to the format webapp.py expects."""
+def _to_webapp_files(files) -> list[dict]:
     result = []
-    for f in (uploaded_files or []):
+    for f in (files or []):
         try:
             content = f.read().decode("utf-8-sig")
         except Exception:
             content = ""
-        result.append({
-            "name": f.name,
-            "relative_path": getattr(f, "name", f.name),
-            "content": content,
-        })
+        result.append({"name": f.name, "relative_path": getattr(f, "name", f.name), "content": content})
     return result
 
 
-def _steps_html(labels: list[str], complete: int) -> str:
+def _steps_html(labels: list[str], done: int) -> str:
     rows = []
-    for i, label in enumerate(labels):
-        if i < complete:
-            css, icon = "step-done", "✓"
-        elif i == complete:
-            css, icon = "step-active", "▶"
+    for i, lbl in enumerate(labels):
+        if i < done:
+            rows.append(f'<div class="s-step done">&#10003;&nbsp;{lbl}</div>')
+        elif i == done:
+            rows.append(f'<div class="s-step active">&#9654;&nbsp;{lbl}</div>')
         else:
-            css, icon = "step-wait", "○"
-        rows.append(f'<div class="step-row {css}">{icon} {label}</div>')
-    return "".join(rows)
+            rows.append(f'<div class="s-step wait">&#9675;&nbsp;{lbl}</div>')
+    return f'<div class="s-steps">{"".join(rows)}</div>'
 
 
-# ── Tab 1: The Forge (Create & Chat) ─────────────────────────────────────────
+def _pill(text: str, on: bool = True) -> str:
+    cls = "s-pill" if on else "s-pill off"
+    return f'<span class="{cls}">{text}</span>'
 
-def render_forge() -> None:
-    st.markdown("## The Forge")
-    st.markdown("> *JSON / JSONL → binary strand → living agent capsule. Every agent begins as raw strand.*")
 
-    # ── Inputs ──
-    col_in, col_out = st.columns([3, 2])
+def _jdump(obj) -> str:
+    try:
+        return json.dumps(obj, indent=2, ensure_ascii=False)
+    except Exception:
+        return str(obj)
 
-    with col_in:
-        st.markdown("### Create Agent")
-        agent_name = st.text_input("Agent name", value="browser_json_agent", key="forge_name")
-        c1, c2 = st.columns(2)
-        with c1:
-            council_size = st.number_input("Council size", min_value=0, max_value=14, value=14, key="forge_council")
-        with c2:
-            generations = st.number_input("Evolve (generations)", min_value=0, max_value=10, value=2, key="forge_gen")
 
-        uploaded_files = st.file_uploader(
-            "JSON / JSONL files — select one, many, or Ctrl+A for whole folder",
+# ── Tab 1: Create & Chat ──────────────────────────────────────────────────────
+
+def render_create_chat() -> None:
+    col_l, col_r = st.columns([3, 2], gap="medium")
+
+    # ── Left column: Create Agent ─────────────────────────────────────────────
+    with col_l:
+        st.markdown("#### Create Agent")
+        agent_name = st.text_input("Agent name", value="browser_json_agent", key="cc_name")
+        num_c1, num_c2 = st.columns(2)
+        with num_c1:
+            council_size = st.number_input("Council size", min_value=0, max_value=14, value=14, key="cc_council")
+        with num_c2:
+            generations = st.number_input("Evolve (generations)", min_value=0, max_value=10, value=2, key="cc_gen")
+
+        json_files = st.file_uploader(
+            "Choose JSON / JSONL files",
             type=["json", "jsonl"],
             accept_multiple_files=True,
-            key="forge_files",
+            key="cc_files",
+            help="Select individual files — or Ctrl+A inside a folder to pick all at once",
         )
+        if json_files:
+            n = len(json_files)
+            st.caption(
+                f"{n} file{'s' if n != 1 else ''} — "
+                + ", ".join(f"`{f.name}`" for f in json_files[:5])
+                + (f" +{n - 5} more" if n > 5 else "")
+            )
 
-        if uploaded_files:
-            n = len(uploaded_files)
-            st.caption(f"{n} file{'s' if n != 1 else ''} selected: " + ", ".join(f"`{f.name}`" for f in uploaded_files[:6]) + (f" +{n-6} more" if n > 6 else ""))
+        folder_files = st.file_uploader(
+            "Choose folder of JSON files",
+            type=["json", "jsonl"],
+            accept_multiple_files=True,
+            key="cc_folder",
+            help="Open a folder in the picker and select all files (Ctrl+A or Shift+click)",
+        )
+        if folder_files:
+            st.caption(f"{len(folder_files)} folder file{'s' if len(folder_files) != 1 else ''} selected")
 
         inline_json = st.text_area(
-            "Inline JSON (optional)",
-            height=120,
+            "Inline JSON",
+            height=130,
             placeholder='{"agent": "inline", "mission": "become a Cursiv agent"}',
-            key="forge_inline",
+            key="cc_inline",
+        )
+        weave_btn = st.button(
+            "Weave Agent",
+            key="cc_weave",
+            type="primary",
+            disabled=not _BACKEND_OK,
         )
 
-        weave_btn = st.button("Weave Agent", key="forge_weave", disabled=not _BACKEND_OK)
+    # ── Right column: Agent Output ────────────────────────────────────────────
+    with col_r:
+        st.markdown("#### Agent Output")
+        st.checkbox("Save zip to download after weaving", value=True, key="cc_save")
 
-    with col_out:
-        st.markdown("### Agent Output")
-        save_zip = st.checkbox("Download capsule zip after weaving", value=True, key="forge_save")
-        steps_placeholder = st.empty()
-        result_placeholder = st.empty()
-        download_placeholder = st.empty()
+        steps_ph  = st.empty()
+        result_ph = st.empty()
 
-    # ── Weave action ──
-    if weave_btn:
-        if not uploaded_files and not inline_json.strip():
-            st.warning("Choose JSON files or paste inline JSON first.")
-        else:
-            steps_placeholder.markdown(
-                _steps_html(["Reading input", "Sending to Cursiv", "Interpreting binary strand", "Exporting capsule"], 0),
-                unsafe_allow_html=True,
+        # Restore persisted state from previous weave
+        steps_ph.markdown(
+            st.session_state.get("cc_steps_html", _steps_html(["Waiting"], 0)),
+            unsafe_allow_html=True,
+        )
+        if st.session_state.get("cc_result_html"):
+            result_ph.markdown(st.session_state["cc_result_html"], unsafe_allow_html=True)
+
+        if st.session_state.get("cc_archive_bytes"):
+            st.download_button(
+                label=f"Download Capsule Zip",
+                data=st.session_state["cc_archive_bytes"],
+                file_name=st.session_state.get("cc_archive_name", "capsule.zip"),
+                mime="application/zip",
+                key="cc_dl",
             )
+
+    # ── Weave action ──────────────────────────────────────────────────────────
+    if weave_btn:
+        all_files = list(json_files or []) + list(folder_files or [])
+        if not all_files and not inline_json.strip():
+            st.warning("Choose JSON files, a folder, or paste inline JSON.")
+        else:
+            STEPS = [
+                "Reading input",
+                "Sending to Cursiv",
+                "Interpreting binary strand",
+                "Exporting agent capsule",
+            ]
             try:
-                webapp_files = _uploaded_to_webapp_files(uploaded_files)
-                steps_placeholder.markdown(
-                    _steps_html(["Reading input", "Sending to Cursiv", "Interpreting binary strand", "Exporting capsule"], 1),
-                    unsafe_allow_html=True,
-                )
+                steps_ph.markdown(_steps_html(STEPS, 0), unsafe_allow_html=True)
+                webapp_files = _to_webapp_files(all_files)
+                steps_ph.markdown(_steps_html(STEPS, 1), unsafe_allow_html=True)
 
                 payload = {
                     "name": agent_name or "browser_json_agent",
@@ -308,79 +558,95 @@ def render_forge() -> None:
                 }
 
                 with tempfile.TemporaryDirectory() as tmpdir:
+                    steps_ph.markdown(_steps_html(STEPS, 2), unsafe_allow_html=True)
                     result = weave_payload(payload, workspace=tmpdir)
 
-                steps_placeholder.markdown(
-                    _steps_html(["Reading input", "Sending to Cursiv", "Interpreting binary strand", "Exporting capsule"], 4),
-                    unsafe_allow_html=True,
-                )
+                steps_ph.markdown(_steps_html(STEPS, 4), unsafe_allow_html=True)
 
-                # Store session for chat
-                st.session_state["session_id"] = result.summary.get("session_id", "")
-                st.session_state["agent_name_display"] = result.summary.get("agent", {}).get("name", agent_name)
-                st.session_state["suggested_prompts"] = result.summary.get("suggested_prompts", [])
-                st.session_state["chat_messages"] = [
-                    {"role": "assistant", "content": result.summary.get("participation_event", {}).get("response", f"{agent_name} is awake.")}
-                ]
-                st.session_state["archive_bytes"] = result.archive_bytes
-                st.session_state["archive_name"] = result.archive_name
-
-                # Show result summary
-                s = result.summary
+                s          = result.summary
                 agent_info = s.get("agent", {})
-                result_placeholder.markdown(
-                    f"""
-**Agent:** `{agent_info.get('name', '')}` (id: `{agent_info.get('id', '')[:12]}...`)
+                output     = s.get("output", {})
 
-**Records:** {s.get('records', 0)} · **Binary bits:** {s.get('binary_strand_bits', 0)} · **Generation:** {s.get('generation', 0)}
-
-<span class="seal">Capsule: {s.get('output', {}).get('capsule_json', '—')}</span>
-""",
-                    unsafe_allow_html=True,
+                save_msg   = f"Capsule zip ready — {result.archive_name}"
+                result_html = (
+                    f'<div class="s-result">'
+                    f'<strong>{save_msg}</strong>'
+                    f'<div class="meta">'
+                    f'Agent: <code>{agent_info.get("name","")}</code>'
+                    f'&nbsp;&nbsp;id: <code>{agent_info.get("id","")[:16]}…</code>'
+                    f'</div>'
+                    f'<div class="meta">'
+                    f'Records: <b>{s.get("records",0)}</b>'
+                    f'&nbsp;·&nbsp;Bits: <b>{s.get("binary_strand_bits",0)}</b>'
+                    f'&nbsp;·&nbsp;Generation: <b>{s.get("generation",0)}</b>'
+                    f'</div>'
+                    f'<code>'
+                    f'Capsule JSON: {output.get("capsule_json","")}\n'
+                    f'Cursiv loader: {output.get("capsule_cursiv","")}\n'
+                    f'Python loader: {output.get("python_loader","")}\n'
+                    f'Manifest: {output.get("manifest","")}'
+                    f'</code>'
+                    f'</div>'
                 )
+                result_ph.markdown(result_html, unsafe_allow_html=True)
 
-                if save_zip and result.archive_bytes:
-                    download_placeholder.download_button(
-                        label=f"Download {result.archive_name}",
-                        data=result.archive_bytes,
-                        file_name=result.archive_name,
-                        mime="application/zip",
-                        key="forge_dl",
-                    )
+                # Persist everything in session_state
+                st.session_state.update({
+                    "cc_steps_html":       _steps_html(STEPS, 4),
+                    "cc_result_html":      result_html,
+                    "cc_archive_bytes":    result.archive_bytes,
+                    "cc_archive_name":     result.archive_name,
+                    "session_id":          s.get("session_id", ""),
+                    "agent_name_display":  agent_info.get("name", agent_name),
+                    "suggested_prompts":   s.get("suggested_prompts", []),
+                    "chat_messages": [
+                        {
+                            "role": "assistant",
+                            "content": s.get("participation_event", {}).get(
+                                "response", f"{agent_name} is awake."
+                            ),
+                        }
+                    ],
+                })
+                st.rerun()
 
-            except Exception as e:
-                steps_placeholder.markdown(
-                    _steps_html(["Stopped"], 0),
-                    unsafe_allow_html=True,
-                )
-                result_placeholder.error(f"**Could not weave agent.** {e}")
+            except Exception as exc:
+                steps_ph.markdown(_steps_html(["Stopped"], 0), unsafe_allow_html=True)
+                result_ph.error(f"**Could not weave agent.** {exc}")
 
-    # ── Chat section ──
-    st.markdown('<hr class="divider">', unsafe_allow_html=True)
-    session_id = st.session_state.get("session_id", "")
+    # ── Chat section ──────────────────────────────────────────────────────────
+    st.markdown('<hr class="s-divider">', unsafe_allow_html=True)
+    session_id    = st.session_state.get("session_id", "")
     agent_display = st.session_state.get("agent_name_display", "")
 
-    if session_id and agent_display:
-        st.markdown(f"### Talk To The Agent — *{agent_display}*")
+    # Header row: title + status pill
+    hc1, hc2 = st.columns([5, 2])
+    with hc1:
+        st.markdown("#### Talk To The Agent")
+    with hc2:
+        if session_id and agent_display:
+            st.markdown(_pill(f"Chatting with {agent_display}"), unsafe_allow_html=True)
+        else:
+            st.markdown(_pill("Create an agent to begin", on=False), unsafe_allow_html=True)
 
+    if session_id and agent_display:
         # Suggested prompt buttons
         prompts = st.session_state.get("suggested_prompts", [])
         if prompts:
-            prompt_cols = st.columns(min(len(prompts), 4))
+            btn_cols = st.columns(min(len(prompts), 4))
             for i, prompt in enumerate(prompts[:4]):
-                with prompt_cols[i]:
-                    if st.button(prompt, key=f"prompt_{i}"):
-                        st.session_state["prefill_chat"] = prompt
+                with btn_cols[i]:
+                    if st.button(prompt, key=f"cc_prompt_{i}", type="secondary"):
+                        st.session_state["cc_prefill"] = prompt
 
         # Chat log
-        messages = st.session_state.get("chat_messages", [])
-        for msg in messages:
-            with st.chat_message(msg["role"]):
+        for msg in st.session_state.get("chat_messages", []):
+            with st.chat_message("user" if msg["role"] == "user" else "assistant"):
                 st.write(msg["content"])
 
         # Chat input
-        prefill = st.session_state.pop("prefill_chat", "")
-        question = st.chat_input("Ask the agent about its source knowledge...", key="forge_chat_input")
+        prefill  = st.session_state.pop("cc_prefill", "")
+        question = st.chat_input("Ask the agent about its source knowledge...", key="cc_chat")
         if not question and prefill:
             question = prefill
 
@@ -390,28 +656,29 @@ def render_forge() -> None:
                 st.write(question)
             try:
                 chat_result = chat_payload({"session_id": session_id, "question": question})
-                response = chat_result.get("response", "")
+                response    = chat_result.get("response", "")
                 reflections = chat_result.get("self_reflection_count", 0)
-                full_response = f"{response}\n\n*Reflections: {reflections}*"
-                st.session_state["chat_messages"].append({"role": "assistant", "content": full_response})
+                full        = f"{response}\n\nReflections: {reflections}"
+                st.session_state["chat_messages"].append({"role": "assistant", "content": full})
                 st.session_state["suggested_prompts"] = chat_result.get("suggested_prompts", prompts)
                 with st.chat_message("assistant"):
-                    st.write(full_response)
-            except Exception as e:
-                st.error(f"Chat error: {e}")
+                    st.write(full)
+            except Exception as exc:
+                st.error(f"Chat error: {exc}")
 
-        # Re-download button if zip is in state
-        if st.session_state.get("archive_bytes"):
+        # Re-download (persistent)
+        if st.session_state.get("cc_archive_bytes"):
             st.download_button(
-                label=f"Re-download {st.session_state.get('archive_name', 'capsule.zip')}",
-                data=st.session_state["archive_bytes"],
-                file_name=st.session_state.get("archive_name", "capsule.zip"),
+                label=f"Re-download {st.session_state.get('cc_archive_name','capsule.zip')}",
+                data=st.session_state["cc_archive_bytes"],
+                file_name=st.session_state.get("cc_archive_name", "capsule.zip"),
                 mime="application/zip",
-                key="forge_redl",
+                key="cc_redl",
             )
+
     else:
         st.markdown(
-            f'<p style="color:{SACRED["cream"]}44; font-style:italic;">Weave an agent above to begin the conversation.</p>',
+            f'<p style="color:{_MU}; font-style:italic;">Weave an agent above to begin the conversation.</p>',
             unsafe_allow_html=True,
         )
 
@@ -419,22 +686,25 @@ def render_forge() -> None:
 # ── Tab 2: Sovereign Wrapper ──────────────────────────────────────────────────
 
 def render_sovereign() -> None:
-    st.markdown("## Sovereign Wrapper")
-    st.markdown("> *Commit agents to the evolutionary process. Package them as a standalone sovereign AI system.*")
+    col_l, col_r = st.columns([3, 2], gap="medium")
 
-    col_left, col_right = st.columns([3, 2])
+    # ── Left column: inputs ───────────────────────────────────────────────────
+    with col_l:
+        st.markdown("#### Sovereign Wrapper")
+        st.markdown(
+            f'<p style="color:{_MU}; font-size:.95rem;">Select the current agent, one exported agent, or a folder of exported agents.</p>',
+            unsafe_allow_html=True,
+        )
 
-    with col_left:
         system_name = st.text_input("System name", value="sovereign_cursiv_system", key="sov_name")
-
         use_current = st.checkbox(
-            "Use current web-created agent (if available)",
+            "Use current web-created agent if available",
             value=True,
             key="sov_use_current",
         )
 
         agent_files = st.file_uploader(
-            "Agent capsule JSON(s) — or a folder of agents",
+            "Choose agent capsule JSON",
             type=["json"],
             accept_multiple_files=True,
             key="sov_files",
@@ -442,13 +712,22 @@ def render_sovereign() -> None:
         if agent_files:
             st.caption(f"{len(agent_files)} agent file{'s' if len(agent_files) != 1 else ''} selected")
 
+        folder_agents = st.file_uploader(
+            "Choose folder of agents",
+            type=["json"],
+            accept_multiple_files=True,
+            key="sov_folder",
+        )
+        if folder_agents:
+            st.caption(f"{len(folder_agents)} folder agent{'s' if len(folder_agents) != 1 else ''} selected")
+
         st.markdown(
-            '<div class="warning-box">'
-            "<strong>Committing to the evolutionary process is not quick.</strong><br>"
-            "Training can take several hours to days depending on hardware. The process is worth it.<br><br>"
-            "Minimal setup: modern laptop, 16GB RAM. NVIDIA GPU with CUDA strongly recommended. "
-            "CPU-only: expect 4–24+ hours. GPU: 1–8 hours."
-            "</div>",
+            f'<div class="s-warning">'
+            f'<strong>Committing to the evolutionary process is not quick.</strong>'
+            f'<p>Training can take several hours to days depending on hardware. The process is worth it.</p>'
+            f'<p>Minimal setup: modern laptop, 16GB RAM. NVIDIA GPU with CUDA strongly recommended.<br>'
+            f'CPU-only: expect 4–24+ hours. GPU: 1–8 hours depending on dataset size.</p>'
+            f'</div>',
             unsafe_allow_html=True,
         )
         st.markdown("")
@@ -461,77 +740,93 @@ def render_sovereign() -> None:
         wrap_btn = st.button(
             "Wrap into Sovereign AI System",
             key="sov_wrap",
+            type="primary",
             disabled=(not ack or not _BACKEND_OK),
         )
 
-    with col_right:
-        st.markdown("### Evo Training Flow")
-        training_steps_ph = st.empty()
-        training_steps_ph.markdown(
-            _steps_html(["Waiting for acknowledgment"], 0),
+    # ── Right column: training flow ───────────────────────────────────────────
+    with col_r:
+        st.markdown("#### Evo Training Flow")
+        phase_ph = st.empty()
+        phase_ph.markdown(
+            f'<div class="s-progress-label"><span>Waiting</span><span>ETA not started</span></div>',
             unsafe_allow_html=True,
         )
         progress_bar = st.progress(0)
+        steps_ph     = st.empty()
+        steps_ph.markdown(_steps_html(["Waiting for acknowledgment"], 0), unsafe_allow_html=True)
         result_ph = st.empty()
-        dl_ph = st.empty()
+        dl_ph     = st.empty()
 
+    # ── Wrap action ───────────────────────────────────────────────────────────
     if wrap_btn:
-        training_labels = [
+        TRAIN_STEPS = [
             "Long Evo training session",
             "Accuracy follow-up training session",
             "Packaging local system",
         ]
-
-        import time
-
-        phases = [
-            (0, 62, 0),
-            (62, 88, 1),
-            (88, 100, 2),
+        PHASES = [
+            ("Long Evo training session",    "Estimated 4–24+ hours CPU, 1–8 hours GPU", 0,  62, 0),
+            ("Accuracy follow-up training",  "Estimated 1–6 hours",                      62, 88, 1),
+            ("Packaging Sovereign system",   "Less than a minute",                       88, 100, 2),
         ]
-        for start, end, step_idx in phases:
-            training_steps_ph.markdown(
-                _steps_html(training_labels, step_idx),
+
+        for label, eta, start, end, step_idx in PHASES:
+            phase_ph.markdown(
+                f'<div class="s-progress-label">'
+                f'<span class="phase">{label}</span>'
+                f'<span>{eta}</span>'
+                f'</div>',
                 unsafe_allow_html=True,
             )
-            for pct in range(start, end, 4):
+            steps_ph.markdown(_steps_html(TRAIN_STEPS, step_idx), unsafe_allow_html=True)
+            for pct in range(start, end, 2):
                 progress_bar.progress(pct / 100)
-                time.sleep(0.05)
+                time.sleep(0.065)
 
-        training_steps_ph.markdown(
-            _steps_html(training_labels, len(training_labels)),
+        steps_ph.markdown(_steps_html(TRAIN_STEPS, len(TRAIN_STEPS)), unsafe_allow_html=True)
+        progress_bar.progress(1.0)
+        phase_ph.markdown(
+            f'<div class="s-progress-label">'
+            f'<span style="color:#4CAF50;">Complete</span>'
+            f'<span>Ready to download</span>'
+            f'</div>',
             unsafe_allow_html=True,
         )
-        progress_bar.progress(1.0)
 
         try:
-            webapp_files = _uploaded_to_webapp_files(agent_files)
-            current_session = st.session_state.get("session_id", "") if use_current else ""
+            all_agents   = list(agent_files or []) + list(folder_agents or [])
+            webapp_files = _to_webapp_files(all_agents)
+            current_sid  = st.session_state.get("session_id", "") if use_current else ""
 
             payload = {
                 "system_name": system_name or "sovereign_cursiv_system",
-                "session_id": current_session,
-                "files": webapp_files,
+                "session_id":  current_sid,
+                "files":       webapp_files,
             }
 
             with tempfile.TemporaryDirectory() as tmpdir:
                 result = sovereign_payload(payload, workspace=tmpdir)
 
-            sov_sum = result.summary
+            s = result.summary
             result_ph.markdown(
-                f"**Sovereign system ready.**\n\n"
-                f"Agents wrapped: **{sov_sum.get('agent_count', 0)}**\n\n"
-                f"System: `{sov_sum.get('system_name', '')}`",
+                f'<div class="s-result">'
+                f'<strong>Sovereign system package ready.</strong>'
+                f'<div class="meta">Agents wrapped: <b>{s.get("agent_count", 0)}</b></div>'
+                f'<code>{_jdump(s)}</code>'
+                f'</div>',
+                unsafe_allow_html=True,
             )
             dl_ph.download_button(
-                label=f"Download Sovereign System Zip",
+                label="Download Sovereign System Zip",
                 data=result.archive_bytes,
                 file_name=result.archive_name,
                 mime="application/zip",
                 key="sov_dl",
             )
-        except Exception as e:
-            result_ph.error(f"**Could not wrap system.** {e}")
+
+        except Exception as exc:
+            result_ph.error(f"**Could not wrap system.** {exc}")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -540,10 +835,10 @@ def main() -> None:
     setup_page()
     render_header()
 
-    forge_tab, sovereign_tab = st.tabs(["The Forge — Create & Chat", "Sovereign Wrapper"])
+    create_tab, sovereign_tab = st.tabs(["Create & Chat", "Sovereign Wrapper"])
 
-    with forge_tab:
-        render_forge()
+    with create_tab:
+        render_create_chat()
 
     with sovereign_tab:
         render_sovereign()
