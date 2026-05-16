@@ -197,45 +197,81 @@ def render_header() -> None:
 
 def render_forge() -> None:
     st.markdown("## The Forge")
-    st.markdown("> *Create agents from JSON knowledge. Every agent begins as raw strand.*")
+    st.markdown("> *Create agents from JSON knowledge. Upload one file, a selection, or an entire folder.*")
 
     col1, col2 = st.columns([3, 2])
     with col1:
-        st.markdown("### Upload Knowledge Packet")
-        uploaded = st.file_uploader("JSON knowledge packet", type=["json"])
-        agent_name = st.text_input("Agent name (optional — uses packet name if empty)")
-        mode = st.selectbox("Academy mode", ["Full (8 phases)", "Quick (4 phases)"])
+        st.markdown("### Upload Knowledge Packets")
+        st.caption("Select one file, multiple files, or all files from a folder (Ctrl+A in the file picker).")
+        uploaded_files = st.file_uploader(
+            "JSON knowledge packets",
+            type=["json"],
+            accept_multiple_files=True,
+        )
+        mode = st.selectbox("Academy mode", ["Quick (fast, no LLM needed)", "Full (8 phases, requires LLM)"])
+        prefix = st.text_input(
+            "Name prefix (optional)",
+            placeholder="e.g. 'HF-' → HF-AgentName",
+            help="Applied to all uploaded files. Leave blank to use filenames as-is.",
+        )
 
-        if uploaded and st.button("Forge Agent"):
-            try:
-                knowledge = json.loads(uploaded.read().decode("utf-8"))
-                name = agent_name or uploaded.name.replace(".json", "")
-                with st.spinner("Forging... The Academy is running."):
-                    from cursiv_v215.forge.factory import AgentFactory
-                    from cursiv_v215.forge.router import OracleRouter
-                    router = OracleRouter()
-                    factory = AgentFactory(router=router)
-                    progress_container = st.empty()
+        if uploaded_files:
+            count = len(uploaded_files)
+            names = [f.name for f in uploaded_files]
+            st.markdown(
+                f"**{count} file{'s' if count != 1 else ''} selected:** "
+                + ", ".join(f"`{n}`" for n in names[:8])
+                + (f" … +{count - 8} more" if count > 8 else ""),
+            )
 
-                    phases_completed = []
+        if uploaded_files and st.button(f"Forge {len(uploaded_files)} Agent{'s' if len(uploaded_files) != 1 else ''}"):
+            from cursiv_v215.forge.factory import AgentFactory
+            from cursiv_v215.forge.router import OracleRouter
+            router = OracleRouter()
+            factory = AgentFactory(router=router)
 
-                    def on_phase(phase: str, num: int) -> None:
-                        phases_completed.append(phase)
-                        progress_container.markdown(
-                            " ".join(f'<span class="phase-badge">{p}</span>' for p in phases_completed),
-                            unsafe_allow_html=True,
-                        )
+            results_ok: list[str] = []
+            results_err: list[str] = []
+            overall_bar = st.progress(0, text="Starting forge batch...")
+            status_area = st.empty()
+
+            for i, file in enumerate(uploaded_files):
+                raw_name = file.name.replace(".json", "")
+                agent_name = (prefix + raw_name) if prefix else raw_name
+                overall_bar.progress(
+                    (i) / len(uploaded_files),
+                    text=f"Forging {i + 1}/{len(uploaded_files)}: {agent_name}",
+                )
+                try:
+                    content = file.read()
+                    # Handle BOM
+                    knowledge = json.loads(content.decode("utf-8-sig"))
+                    # Use name field from JSON if present and no prefix override
+                    if not prefix and "name" in knowledge:
+                        agent_name = str(knowledge["name"])
 
                     if "Quick" in mode:
-                        agent = factory.quick_create(knowledge, name)
+                        agent = factory.quick_create(knowledge, agent_name)
                     else:
-                        agent = factory.create_from_dict(knowledge, name, on_phase=on_phase)
+                        agent = factory.create_from_dict(knowledge, agent_name)
 
-                st.success(f"Agent forged: **{agent.name}** [{agent.state.value}]")
-                st.markdown(f'<span class="seal">Seal: {agent.sovereign_seal[:32]}...</span>', unsafe_allow_html=True)
-                st.session_state["last_agent_id"] = agent.id
-            except Exception as e:
-                st.error(f"Forge failed: {e}")
+                    results_ok.append(
+                        f"**{agent.name}** [{agent.state.value}] "
+                        f"— seal `{agent.sovereign_seal[:16] if agent.sovereign_seal else 'none'}...`"
+                    )
+                except Exception as e:
+                    results_err.append(f"**{agent_name}**: {e}")
+
+            overall_bar.progress(1.0, text="Batch complete.")
+
+            if results_ok:
+                st.success(f"{len(results_ok)} agent{'s' if len(results_ok) != 1 else ''} forged:")
+                for r in results_ok:
+                    st.markdown(f"  ✓ {r}")
+            if results_err:
+                st.error(f"{len(results_err)} failed:")
+                for r in results_err:
+                    st.markdown(f"  ✗ {r}")
 
     with col2:
         st.markdown("### Quick Create from Text")
