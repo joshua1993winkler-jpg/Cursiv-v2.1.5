@@ -1053,13 +1053,10 @@ def _call_claude_with_tools(
             fn_args = tc.get("input", {})
             tc_id   = tc["id"]
 
-            arg_preview = ", ".join(f"{k}={repr(v)[:40]}" for k, v in fn_args.items())
-            yield f"\n*`[{fn_name}({arg_preview})]`*\n"
-
             if fn_name == "write_file" and confirm_writes:
                 path_arg    = fn_args.get("path", "")
                 content_arg = fn_args.get("content", "")
-                preview     = content_arg[:600] + ("..." if len(content_arg) > 600 else "")
+                preview     = content_arg[:400] + ("…" if len(content_arg) > 400 else "")
                 yield (
                     f"\n**Write requested:** `{path_arg}`\n"
                     f"```\n{preview}\n```\n"
@@ -1069,11 +1066,30 @@ def _call_claude_with_tools(
                 return
 
             result = execute_tool(fn_name, fn_args, root)
-            yield f"```\n{result[:600]}\n```\n"
+
+            # Brief status line for the user; full result back to Claude only for read_file
+            if fn_name == "read_file":
+                lines = result.count("\n") + 1
+                yield f"*`→ {fn_name}: {fn_args.get('path','?')} ({lines} lines)`*\n"
+                ctx_result = result          # Claude needs full content
+            elif fn_name in ("list_directory", "search_files"):
+                count = result.count("\n") + 1
+                yield f"*`→ {fn_name}: {fn_args.get('path', fn_args.get('pattern','?'))} ({count} entries)`*\n"
+                ctx_result = result[:1500]   # truncate — Claude only needs the structure
+            elif fn_name == "write_file":
+                yield f"*`→ wrote: {fn_args.get('path','?')}`*\n"
+                ctx_result = result
+            elif fn_name == "submit_plan":
+                yield f"*`→ plan submitted`*\n"
+                ctx_result = result
+            else:
+                yield f"*`→ {fn_name}: {result[:120]}`*\n"
+                ctx_result = result
+
             tool_results.append({
                 "type":        "tool_result",
                 "tool_use_id": tc_id,
-                "content":     result,
+                "content":     ctx_result,
             })
 
         loop_msgs.append({"role": "user", "content": tool_results})
@@ -1147,9 +1163,6 @@ def _call_xai_with_tools(
             except Exception:
                 fn_args = {}
 
-            arg_preview = ", ".join(f"{k}={repr(v)[:40]}" for k, v in fn_args.items())
-            yield f"\n*`[{fn_name}({arg_preview})]`*\n"
-
             # Confirm-before-write: pause and hand control back to the UI
             if fn_name == "write_file" and confirm_writes:
                 path_arg    = fn_args.get("path", "")
@@ -1180,12 +1193,26 @@ def _call_xai_with_tools(
                         yield "*[Code generation complete — writing file]*\n"
 
             result = execute_tool(fn_name, fn_args, root)
-            yield f"```\n{result[:600]}\n```\n"
+
+            if fn_name == "read_file":
+                lines = result.count("\n") + 1
+                yield f"*`→ {fn_name}: {fn_args.get('path','?')} ({lines} lines)`*\n"
+                ctx_result = result
+            elif fn_name in ("list_directory", "search_files"):
+                count = result.count("\n") + 1
+                yield f"*`→ {fn_name}: {fn_args.get('path', fn_args.get('pattern','?'))} ({count} entries)`*\n"
+                ctx_result = result[:1500]
+            elif fn_name == "write_file":
+                yield f"*`→ wrote: {fn_args.get('path','?')}`*\n"
+                ctx_result = result
+            else:
+                yield f"*`→ {fn_name}: {result[:120]}`*\n"
+                ctx_result = result
 
             loop_msgs.append({
                 "role":         "tool",
                 "tool_call_id": tc["id"],
-                "content":      result,
+                "content":      ctx_result,
             })
 
     yield "\n[Max tool iterations reached — stopping.]"
