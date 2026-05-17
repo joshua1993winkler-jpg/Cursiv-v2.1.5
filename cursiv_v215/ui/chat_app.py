@@ -262,11 +262,22 @@ def _resolve_path(raw: str, root: Path) -> Path | None:
         return None
 
 
+_BLOCKED_READ_PATHS = {
+    ".cursiv/config.json",
+    ".cursiv\\config.json",
+    "secrets.bat",
+}
+
 def execute_tool(name: str, args: dict, root: Path) -> str:
     """Execute a file tool call. Returns a string result sent back to the model."""
 
     if name == "read_file":
-        path = _resolve_path(args.get("path", ""), root)
+        raw_path = args.get("path", "")
+        # Block credential files — keys must never be exposed via tool reads
+        for blocked in _BLOCKED_READ_PATHS:
+            if blocked.replace("\\", "/") in raw_path.replace("\\", "/"):
+                return "Access denied: this file contains credentials and cannot be read via tools."
+        path = _resolve_path(raw_path, root)
         if not path:
             return "Error: path is outside the workspace root. Only paths inside the workspace are allowed."
         if not path.exists():

@@ -470,24 +470,24 @@ def _load_config() -> dict:
 
 
 def _save_config(cfg: dict) -> None:
+    # Never persist API keys to disk — strip them before writing.
+    # Keys must live only in secrets.bat (loaded as env vars at boot).
+    safe = {k: v for k, v in cfg.items() if "key" not in k.lower() and "token" not in k.lower()}
     _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    _CONFIG_PATH.write_text(json.dumps(safe, indent=2), encoding="utf-8")
 
 
 def _init_keys_from_config() -> None:
-    """Called once per session to load saved keys into session_state + os.environ."""
+    """Load keys from environment only — never from config.json."""
     if st.session_state.get("_cfg_loaded"):
         return
-    cfg = _load_config()
-    for ss_key, cfg_key, env_key in [
-        ("cfg_xai_key",    "xai_api_key",    "XAI_API_KEY"),
-        ("cfg_openai_key", "openai_api_key", "OPENAI_API_KEY"),
+    for ss_key, env_key in [
+        ("cfg_xai_key",    "XAI_API_KEY"),
+        ("cfg_openai_key", "OPENAI_API_KEY"),
     ]:
-        val = cfg.get(cfg_key, "").strip()
+        val = os.environ.get(env_key, "").strip()
         if ss_key not in st.session_state:
             st.session_state[ss_key] = val
-        if val:
-            os.environ[env_key] = val
     st.session_state["_cfg_loaded"] = True
 
 
