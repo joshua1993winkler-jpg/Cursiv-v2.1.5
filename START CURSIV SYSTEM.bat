@@ -104,9 +104,21 @@ if %errorlevel% equ 0 (
 echo.
 
 :: ================================================================
-::  PHASE 4 - PREP DIRECTORIES
+::  PHASE 4 - CLEAR PORTS + PREP DIRECTORIES
 :: ================================================================
-echo [PHASE 4] Directory prep >> "%LOG%"
+echo [PHASE 4] Clearing ports and prepping directories >> "%LOG%"
+echo  [4a] Clearing ports 7860 7861 8501 (killing stale processes)...
+
+for %%P in (7860 7861 8501) do (
+    for /f "tokens=5" %%I in ('netstat -ano 2^>nul ^| findstr ":%%P "') do (
+        if not "%%I"=="0" (
+            taskkill /PID %%I /F >nul 2>&1
+            call :log "        Killed PID %%I on port %%P"
+        )
+    )
+)
+timeout /t 1 /nobreak >nul
+
 if not exist "%SDIR%\.cursiv"           mkdir "%SDIR%\.cursiv"
 if not exist "%SDIR%\.cursiv\vault"     mkdir "%SDIR%\.cursiv\vault"
 if not exist "%SDIR%\.cursiv\sessions"  mkdir "%SDIR%\.cursiv\sessions"
