@@ -28,7 +28,7 @@ def record_cycle(
     """Snapshot one full evolution cycle into the metrics table."""
     with db.get_db() as conn:
         conn.execute(
-            """INSERT INTO metrics
+            """INSERT INTO metric_log
                (recorded_at, metric_name, metric_value, notes)
                VALUES (?,?,?,?)""",
             (datetime.now().isoformat(), "cycle_summary",
@@ -42,7 +42,7 @@ def record_value(name: str, value: float, notes: str = "") -> None:
     """Store a single named metric data point."""
     with db.get_db() as conn:
         conn.execute(
-            "INSERT INTO metrics (recorded_at, metric_name, metric_value, notes) VALUES (?,?,?,?)",
+            "INSERT INTO metric_log (recorded_at, metric_name, metric_value, notes) VALUES (?,?,?,?)",
             (datetime.now().isoformat(), name, value, notes),
         )
 
@@ -52,7 +52,7 @@ def get_trend(metric_name: str, days: int = 7) -> list[tuple[str, float]]:
     cutoff = (datetime.now() - timedelta(days=days)).isoformat()
     with db.get_db() as conn:
         rows = conn.execute(
-            "SELECT recorded_at, metric_value FROM metrics "
+            "SELECT recorded_at, metric_value FROM metric_log "
             "WHERE metric_name = ? AND recorded_at > ? ORDER BY recorded_at",
             (metric_name, cutoff),
         ).fetchall()

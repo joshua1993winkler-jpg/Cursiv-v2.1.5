@@ -109,5 +109,7 @@ def _hash_embed(text: str) -> np.ndarray:
         data   = hashlib.sha256(data).digest()
         floats += [struct.unpack_from("f", data, i * 4)[0] for i in range(len(data) // 4)]
     vec = np.array(floats[:dim], dtype=np.float32)
+    # SHA-256 bytes as float32 can produce inf/NaN — sanitize before normalizing
+    vec = np.nan_to_num(vec, nan=0.0, posinf=1.0, neginf=-1.0)
     norm = np.linalg.norm(vec)
     return vec / norm if norm > 0 else vec

@@ -95,10 +95,20 @@ CREATE TABLE IF NOT EXISTS watermarks (
     updated_at TEXT    DEFAULT (datetime('now'))
 );
 
+-- Flexible time-series metric log (used by metrics.py)
+CREATE TABLE IF NOT EXISTS metric_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    recorded_at  TEXT NOT NULL,
+    metric_name  TEXT NOT NULL,
+    metric_value REAL DEFAULT 0.0,
+    notes        TEXT DEFAULT ''
+);
+
 CREATE INDEX IF NOT EXISTS idx_summaries_quality   ON summaries(quality_score);
 CREATE INDEX IF NOT EXISTS idx_summaries_date      ON interactions(session_date);
 CREATE INDEX IF NOT EXISTS idx_wisdom_quality      ON wisdom_ledger(quality_score DESC);
 CREATE INDEX IF NOT EXISTS idx_evo_applied         ON evolution_log(applied);
+CREATE INDEX IF NOT EXISTS idx_metric_log_name     ON metric_log(metric_name, recorded_at);
 """
 
 
