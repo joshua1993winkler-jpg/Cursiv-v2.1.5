@@ -1,5 +1,5 @@
 @echo off
-setlocal enabledelayedexpansion
+setlocal
 title Cursiv v3.0 -- Full System Boot
 color 07
 cd /d "%~dp0"
@@ -53,7 +53,7 @@ echo         Python %PYVER%  OK
 echo.
 
 :: ================================================================
-::  PHASE 3 - DEPENDENCIES  (fast check -- only installs if missing)
+::  PHASE 3 - DEPENDENCIES
 :: ================================================================
 
 echo  [3/5] Checking dependencies...
@@ -87,42 +87,39 @@ echo.
 ::  PHASE 4 - PREP
 :: ================================================================
 
-if not exist ".cursiv" mkdir ".cursiv"
-if not exist ".cursiv\vault" mkdir ".cursiv\vault"
+if not exist "%~dp0.cursiv" mkdir "%~dp0.cursiv"
+if not exist "%~dp0.cursiv\vault" mkdir "%~dp0.cursiv\vault"
+if not exist "%~dp0.cursiv\sessions" mkdir "%~dp0.cursiv\sessions"
 
 :: ================================================================
 ::  PHASE 5 - STAGGERED LAUNCH
+::  Using start /D to set working directory -- avoids nested-quote
+::  issues with paths that contain spaces (OneDrive, etc.)
 :: ================================================================
 
 echo  [4/5] Booting components (staggered launch)...
 echo.
 
-:: -- [1/6] Main Chat (heaviest -- boot first, most time to settle)
 echo   [1/6] JW Main Chat          port 7860 ...
-start "JW Main Chat - 7860" cmd /k "cd /d "%~dp0" && if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_app"
+start "JW Main Chat - 7860" /D "%~dp0" cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_app"
 timeout /t 5 /nobreak >nul
 
-:: -- [2/6] Command Nexus
 echo   [2/6] JW Command Nexus      port 7861 ...
-start "JW Command Nexus - 7861" cmd /k "cd /d "%~dp0" && if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.nexus_app"
+start "JW Command Nexus - 7861" /D "%~dp0" cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.nexus_app"
 timeout /t 4 /nobreak >nul
 
-:: -- [3/6] Sacred UI (Streamlit)
 echo   [3/6] Cursiv Sacred UI      port 8501 ...
-start "Cursiv Sacred UI - 8501" cmd /k "cd /d "%~dp0" && if exist secrets.bat call secrets.bat && python -m streamlit run cursiv_v215/ui/app.py --server.port 8501 --server.headless false --browser.gatherUsageStats false"
+start "Cursiv Sacred UI - 8501" /D "%~dp0" cmd /k "if exist secrets.bat call secrets.bat && python -m streamlit run cursiv_v215/ui/app.py --server.port 8501 --server.headless false --browser.gatherUsageStats false"
 timeout /t 4 /nobreak >nul
 
-:: -- [4/6] Terminal Chat CLI (maximized standalone window)
 echo   [4/6] Terminal Chat CLI     (maximized)...
-start "JW Terminal Chat" /MAX cmd /k "cd /d "%~dp0" && if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_cli"
+start "JW Terminal Chat" /D "%~dp0" /MAX cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_cli"
 timeout /t 2 /nobreak >nul
 
-:: -- [5/6] Training Watcher
 echo   [5/6] Training Watcher      (background)...
-start "Training Watcher" cmd /k "cd /d "%~dp0" && python -m cursiv_v215.training.watcher"
+start "Training Watcher" /D "%~dp0" cmd /k "python -m cursiv_v215.training.watcher"
 timeout /t 2 /nobreak >nul
 
-:: -- [6/6] Ollama (optional)
 if %OLLAMA_FOUND% equ 1 (
     echo   [6/6] Ollama Mistral        (local inference)...
     start "Ollama - Mistral" cmd /k "ollama run mistral"
