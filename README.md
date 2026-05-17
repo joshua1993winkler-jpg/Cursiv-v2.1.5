@@ -1,6 +1,6 @@
 # ⬡ Cursiv v3.0
 
-> **An autonomous AI operating system built for one purpose: executing at the frontier.**
+> **A multi-model AI operating tool for coordinated local AI work.**
 > Triple-model intelligence (xAI Grok · OpenAI GPT-4.1 · Anthropic Claude), live file tools, a 14-agent vault council, Guardian firewall, Obsidian live sync, and persistent session memory — all running locally on your machine.
 
 <br>
@@ -11,7 +11,7 @@
 
 **Cursiv** is a self-contained AI workspace that wires together xAI, OpenAI, and Anthropic into a single local system. It's not a wrapper — it's a full operating environment:
 
-- **Main Chat UI** — Sacred-aesthetic Gradio interface, streaming AI responses, image and file uploads, smart model routing
+- **Main Chat UI** — Gradio interface, streaming AI responses, image and file uploads, smart model routing
 - **Terminal Chat** — Full-screen CLI with ANSI gold/lapis styling, paste-safe input, no browser needed
 - **Nexus Panel** — 14-agent command council with live status, yin-yang balance tracking, and identity drift monitoring
 - **File System Tools** — AI reads, writes, searches, and organizes your codebase autonomously
@@ -255,7 +255,7 @@ The vault contains 14 living agents seeded across the JW Architect phase cycle. 
 
 - Each agent's `knowledge_map` is loaded into the system prompt of every conversation
 - The Nexus panel shows real-time agent status and allows domain/task reassignment
-- Agents can be queried directly through the Sovereign routing system
+- Agents can be queried directly through the Oracle routing system
 
 <br>
 
@@ -270,14 +270,14 @@ Cursiv-v2.1.5/
 │   │   ├── chat_app.py        # Gradio main chat (port 7860)
 │   │   ├── chat_cli.py        # Terminal chat (full-screen CLI)
 │   │   ├── nexus_app.py       # Nexus command panel (port 7861)
-│   │   └── app.py             # Sacred UI (Streamlit, port 8501)
+│   │   └── app.py             # Dashboard UI (Streamlit, port 8501)
 │   ├── core/                  # Agent, memory, constitution engine
 │   ├── council/               # 14-agent deliberation system
 │   ├── forge/                 # Training data forge + factory
 │   ├── academy/               # Scoring and LoRA pipeline
 │   ├── dugout/                # Agent vault
 │   ├── guardian/              # System Guardian firewall + obfuscation + decoys
-│   ├── weave/                 # Sovereign + transitionary weave
+│   ├── weave/                 # Oracle + transitionary weave
 │   ├── memory/                # Session logger + boot context loader
 │   ├── obsidian/              # Obsidian vault exporter + livestream
 │   └── nexus/                 # Command router
@@ -308,7 +308,7 @@ prompt_toolkit >= 3.0.0
 Optional:
 - **Ollama** — fully offline operation without API keys (`ollama pull mistral`)
 - **pypdf** — PDF file reading and upload support
-- **streamlit** — Sacred UI (port 8501)
+- **streamlit** — Dashboard UI (port 8501)
 
 <br>
 
@@ -320,7 +320,7 @@ Optional:
 - API keys are read from environment variables only — never logged, stored in history, or sent anywhere except the respective API endpoint
 - `secrets.bat` is explicitly excluded from git via `.gitignore` and will never appear in commits or pushes
 - CONFIRM write mode is the default — no file is ever modified without your explicit `y` approval
-- A hidden sovereign owner command exists deep in the codebase — known only to the builder — that disables the Guardian and reveals full system internals
+- A hidden developer override command exists in the codebase that disables the Guardian and exposes full system internals for debugging
 
 <br>
 
@@ -350,9 +350,7 @@ Talk to the system inside the terminal chat. Ask it to:
 - Analyze data, generate training sets, score and curate conversation quality
 - Livestream everything to your Obsidian vault as structured knowledge
 
-Test it. Break it. Evolve it. Pass it on.
-
-*From the Dust, We Shape the Stars.*
+Test it. Break it. Extend it. Pass it on.
 
 <br>
 
