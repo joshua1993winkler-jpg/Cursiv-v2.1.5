@@ -1,12 +1,14 @@
 @echo off
-title Cursiv v2.1.5 - The Sovereign Temple
+title Cursiv v3.0 - The Sovereign Temple
 color 07
 cd /d "%~dp0"
 
+if exist "%~dp0secrets.bat" call "%~dp0secrets.bat"
+
 echo.
 echo  ========================================================
-echo   CURSIV v2.1.5 - THE TEMPLE
-echo   Black . Rose Gold . Lapis Eye
+echo   CURSIV v3.0 - THE SOVEREIGN TEMPLE
+echo   JWFrontierEvoCore  ^|  Sacred UI
 echo  ========================================================
 echo.
 echo  Checking environment...
@@ -18,10 +20,15 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-where streamlit >nul 2>&1
+python -c "import streamlit" >nul 2>&1
 if %errorlevel% neq 0 (
     echo  Installing Streamlit...
-    pip install streamlit -q
+    python -m pip install "streamlit>=1.32.0" -q
+)
+
+python -c "import cursiv_v215" >nul 2>&1
+if %errorlevel% neq 0 (
+    python -m pip install -e . -q >nul 2>&1
 )
 
 echo  Starting the Sacred UI...
