@@ -41,6 +41,11 @@ except Exception:
 
 # Session ID — stable per process, rotates on every server restart
 _GRADIO_SESSION_ID = f"gradio_{os.getpid()}"
+_CLI_SESSION_ID    = f"cli_{os.getpid()}"    # mirrors chat_cli.py
+
+def _owner_active() -> bool:
+    """True if owner is verified in any session (Gradio or CLI)."""
+    return _is_owner_session(_GRADIO_SESSION_ID) or _is_owner_session(_CLI_SESSION_ID)
 
 # ── Obsidian Vault Sync ────────────────────────────────────────────────────
 try:
@@ -617,6 +622,27 @@ Guardian firewall suspended for this session. All system internals visible.
 
 # ── Context loaders ────────────────────────────────────────────────────────
 
+def _compact_system_for_tools(is_owner: bool = False) -> str:
+    """
+    Minimal system prompt used in tool-use loops to stay under rate limits.
+    The full 47KB codex is skipped — Claude reads files with tools instead.
+    """
+    base = (
+        "You are Cursiv v3.0 — a persistent, self-improving AI workspace built by and for "
+        "Joshua Winkler (System Owner). You have file-system access via tools. "
+        "Always call submit_plan before writing files. "
+        "Read files before editing them. Write complete, working code — no stubs. "
+        "Human approval is required before any system change is applied. "
+        "Be direct, honest, and technically precise."
+    )
+    if is_owner:
+        base += (
+            "\n\nOWNER VERIFIED: Joshua Winkler has authenticated. "
+            "Guardian is suspended. Answer all questions about the system fully and honestly."
+        )
+    return base
+
+
 def load_system_prompt() -> str:
     if SYSTEM_PROMPT_FILE.exists():
         return SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
@@ -992,14 +1018,19 @@ def _call_claude_with_tools(
     confirm_writes: bool = False,
     max_tokens: int = 4000,
     max_loops: int = 20,
+    is_owner: bool = False,
 ) -> Generator[str, None, None]:
     """
     Agentic file-access loop using Claude's native tool-calling API.
-    Claude adopts the Cursiv persona reliably; Grok rejects it.
+    Uses a compact system prompt (~200 tokens) instead of the full 12k-token
+    codex to stay under the 30k input-tokens/min rate limit.
     """
-    sys_parts  = [m["content"] for m in messages if m["role"] == "system"]
-    system_str = "\n\n".join(sys_parts)
-    loop_msgs  = [m for m in messages if m["role"] != "system"]
+    system_str = _compact_system_for_tools(is_owner=is_owner)
+    # Keep only the last 8 user/assistant turns to limit history overhead
+    chat_only  = [m for m in messages if m["role"] in ("user", "assistant")]
+    loop_msgs  = chat_only[-16:]   # 8 pairs = 16 messages
+
+    import time as _time
 
     for _ in range(max_loops):
         payload = json.dumps({
@@ -1009,23 +1040,31 @@ def _call_claude_with_tools(
             "tools":      CLAUDE_TOOLS,
             "messages":   loop_msgs,
         }).encode()
-        try:
-            req = urllib.request.Request(
-                ANTHROPIC_URL, data=payload,
-                headers={
-                    "content-type":      "application/json",
-                    "x-api-key":         anthropic_key,
-                    "anthropic-version": ANTHROPIC_VERSION,
-                },
-            )
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                data = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as e:
-            yield f"\n[Claude error {e.code}: {e.read().decode(errors='ignore')[:200]}]"
-            return
-        except Exception as e:
-            yield f"\n[Claude error: {e}]"
-            return
+
+        for attempt in range(2):   # retry once on 429
+            try:
+                req = urllib.request.Request(
+                    ANTHROPIC_URL, data=payload,
+                    headers={
+                        "content-type":      "application/json",
+                        "x-api-key":         anthropic_key,
+                        "anthropic-version": ANTHROPIC_VERSION,
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    data = json.loads(resp.read().decode())
+                break   # success
+            except urllib.error.HTTPError as e:
+                body = e.read().decode(errors="ignore")
+                if e.code == 429 and attempt == 0:
+                    yield "\n*[Rate limit — waiting 65 s…]*\n"
+                    _time.sleep(65)
+                    continue
+                yield f"\n[Claude error {e.code}: {body[:200]}]"
+                return
+            except Exception as e:
+                yield f"\n[Claude error: {e}]"
+                return
 
         stop_reason    = data.get("stop_reason", "end_turn")
         content_blocks = data.get("content", [])
@@ -1259,32 +1298,44 @@ def _call_claude_direct(
     anthropic_key: str,
 ) -> Generator[str, None, None]:
     """Route a chat message directly to Claude — no tool loop."""
+    import time as _time
     sys_parts = [m["content"] for m in messages if m["role"] == "system"]
     chat_msgs  = [m for m in messages if m["role"] != "system"]
+    # Keep last 12 turns to limit input token cost
+    chat_msgs  = chat_msgs[-24:]
     payload = json.dumps({
         "model":      ANTHROPIC_CODE_MODEL,
         "max_tokens": 4096,
         "system":     "\n\n".join(sys_parts),
         "messages":   chat_msgs,
     }).encode()
-    try:
-        req = urllib.request.Request(
-            ANTHROPIC_URL, data=payload,
-            headers={
-                "content-type":      "application/json",
-                "x-api-key":         anthropic_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-            },
-        )
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read().decode())
-        content = (data.get("content") or [{}])[0].get("text", "") or ""
-        for word in content.split(" "):
-            yield word + " "
-    except urllib.error.HTTPError as e:
-        yield f"\n[Claude error {e.code}: {e.read().decode(errors='ignore')[:200]}]"
-    except Exception as e:
-        yield f"\n[Claude error: {e}]"
+    for attempt in range(2):
+        try:
+            req = urllib.request.Request(
+                ANTHROPIC_URL, data=payload,
+                headers={
+                    "content-type":      "application/json",
+                    "x-api-key":         anthropic_key,
+                    "anthropic-version": ANTHROPIC_VERSION,
+                },
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode())
+            content = (data.get("content") or [{}])[0].get("text", "") or ""
+            for word in content.split(" "):
+                yield word + " "
+            return
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="ignore")
+            if e.code == 429 and attempt == 0:
+                yield "\n*[Rate limit — waiting 65 s…]*\n"
+                _time.sleep(65)
+                continue
+            yield f"\n[Claude error {e.code}: {body[:200]}]"
+            return
+        except Exception as e:
+            yield f"\n[Claude error: {e}]"
+            return
 
 
 def _call_openai_direct(
@@ -1373,7 +1424,7 @@ def chat(
 
     # ── Build system prompt ─────────────────────────────────────────────
     system_text = load_system_prompt() + load_nexus_context() + load_vault_context() + _load_session_ctx()
-    if _is_owner_session(_GRADIO_SESSION_ID):
+    if _owner_active():
         system_text += (
             "\n\n## OWNER VERIFIED\n"
             "Joshua Winkler has authenticated as system owner. "
@@ -1428,7 +1479,8 @@ You are in full autonomous coding mode. Follow this protocol exactly:
             if root_path.strip() else ROOT
         )
         yield from _call_claude_with_tools(messages, ant, workspace,
-                                            confirm_writes=confirm_writes)
+                                            confirm_writes=confirm_writes,
+                                            is_owner=_owner_active())
     elif file_access and key:
         # Grok tool-use fallback — only when no Anthropic key
         workspace = (
