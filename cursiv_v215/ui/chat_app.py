@@ -960,7 +960,7 @@ def build_chat_app() -> gr.Blocks:
         font=gr.themes.GoogleFont("EB Garamond"),
     )
 
-    with gr.Blocks(title="JW Main Chat — JWFrontierEvoCore", js=HOTKEY_JS) as app:
+    with gr.Blocks(title="JW Main Chat — JWFrontierEvoCore") as app:
 
         # ── Invisible state components ───────────────────────────────────
         confirm_mode_state  = gr.State(value="confirm")   # "auto" | "confirm"
@@ -1216,4 +1216,5 @@ if __name__ == "__main__":
         favicon_path=None,
         theme=theme,
         css=CHAT_CSS,
+        js=HOTKEY_JS,
     )

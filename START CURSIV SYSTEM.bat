@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-title JWFrontierEvoCore — System Launcher
+title JWFrontierEvoCore System Launcher
 color 07
 cd /d "%~dp0"
 
@@ -11,16 +11,27 @@ echo   Sovereign Agent Temple  ^|  Full System Launcher
 echo  ================================================================
 echo.
 echo  Components:
-echo    [1] Cursiv Sacred UI    ^|  http://localhost:8501
-echo    [2] JW Main Chat        ^|  http://localhost:7860
-echo    [3] JW Command Nexus    ^|  http://localhost:7861
+echo    [1] JW Main Chat        ^|  http://localhost:7860
+echo    [2] JW Command Nexus    ^|  http://localhost:7861
+echo    [3] Cursiv Sacred UI    ^|  http://localhost:8501
 echo.
 echo  ================================================================
 echo.
 
-:: ═══════════════════════════════════════════════════════════════════
-::  PHASE 1 — PYTHON CHECK
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
+::  PHASE 1 - LOAD KEYS
+:: ================================================================
+
+if exist "%~dp0secrets.bat" (
+    call "%~dp0secrets.bat"
+) else (
+    echo  [!] secrets.bat not found - enter keys manually in the UI.
+    echo.
+)
+
+:: ================================================================
+::  PHASE 2 - PYTHON CHECK
+:: ================================================================
 
 echo  [PHASE 1/3] Checking Python...
 echo.
@@ -39,7 +50,6 @@ if %errorlevel% neq 0 (
 for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
 echo  Python %PYVER% found.
 
-:: Check version is at least 3.11
 for /f "tokens=1,2 delims=." %%a in ("%PYVER%") do (
     set PY_MAJOR=%%a
     set PY_MINOR=%%b
@@ -51,48 +61,44 @@ if !PY_MAJOR! LSS 3 (
 )
 if !PY_MAJOR! EQU 3 if !PY_MINOR! LSS 11 (
     echo  [WARNING] Python 3.11+ recommended. Found: %PYVER%
-    echo  Continuing anyway — some features may not work.
+    echo  Continuing anyway...
 )
 
 echo.
 
-:: ═══════════════════════════════════════════════════════════════════
-::  PHASE 2 — INSTALL DEPENDENCIES
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
+::  PHASE 3 - INSTALL DEPENDENCIES
+:: ================================================================
 
 echo  [PHASE 2/3] Installing / verifying dependencies...
 echo.
 
-:: Upgrade pip silently
 echo   Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
-:: Core — numpy 2.x first (required for Gradio on Python 3.13)
-echo   numpy ^>^=2.0 ...
+echo   numpy ^>=2.0 ...
 python -m pip install "numpy>=2.0" --quiet
 
-:: Streamlit
-echo   streamlit ^>^=1.32.0 ...
+echo   streamlit ^>=1.32.0 ...
 python -m pip install "streamlit>=1.32.0" --quiet
 
-:: Gradio
-echo   gradio ^>^=4.44.0 ...
+echo   gradio ^>=4.44.0 ...
 python -m pip install "gradio>=4.44.0" --quiet
 
-:: Install the Cursiv package itself (editable)
+echo   prompt_toolkit ^>=3.0.0 ...
+python -m pip install "prompt_toolkit>=3.0.0" --quiet
+
 echo   cursiv-v2.1.5 (editable install) ...
 python -m pip install -e . --quiet 2>nul
 
-:: Optional — report Ollama status
 echo.
-echo   Checking Ollama (optional, for local inference)...
+echo   Checking Ollama (optional)...
 where ollama >nul 2>&1
 if %errorlevel% equ 0 (
     echo   Ollama found. Local inference available.
     set OLLAMA_FOUND=1
 ) else (
-    echo   Ollama not found. Using xAI Grok or paste key in Chat UI.
-    echo   Install from: https://ollama.com  then run: ollama pull mistral
+    echo   Ollama not found. Using xAI Grok or enter key in Chat UI.
     set OLLAMA_FOUND=0
 )
 
@@ -100,70 +106,61 @@ echo.
 echo  All dependencies verified.
 echo.
 
-:: ═══════════════════════════════════════════════════════════════════
-::  PHASE 3 — LAUNCH ALL COMPONENTS
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
+::  PHASE 4 - LAUNCH ALL COMPONENTS
+:: ================================================================
 
 echo  [PHASE 3/3] Launching system components...
 echo.
 
-:: Create .cursiv directory for shared state
 if not exist ".cursiv" mkdir ".cursiv"
 
-:: ── Window 1: JW Main Chat (Gradio port 7860) ──────────────────────
+:: Window 1: JW Main Chat (port 7860)
 echo   Starting JW Main Chat        (port 7860)...
-start "JW Main Chat — Port 7860" cmd /k ^
-    "title JW Main Chat ^| JWFrontierEvoCore && color 07 && cd /d "%~dp0" && echo. && echo  JW MAIN CHAT — http://localhost:7860 && echo. && python -m cursiv_v215.ui.chat_app"
+start "JW Main Chat - Port 7860" cmd /k "cd /d "%~dp0" && python -m cursiv_v215.ui.chat_app"
 
-:: Brief pause so ports don't race
 timeout /t 2 /nobreak >nul
 
-:: ── Window 2: JW Command Nexus (Gradio port 7861) ──────────────────
+:: Window 2: JW Command Nexus (port 7861)
 echo   Starting JW Command Nexus    (port 7861)...
-start "JW Command Nexus — Port 7861" cmd /k ^
-    "title JW Command Nexus ^| Port 7861 && color 07 && cd /d "%~dp0" && echo. && echo  JW COMMAND NEXUS — http://localhost:7861 && echo. && python -m cursiv_v215.ui.nexus_app"
+start "JW Command Nexus - Port 7861" cmd /k "cd /d "%~dp0" && python -m cursiv_v215.ui.nexus_app"
 
 timeout /t 2 /nobreak >nul
 
-:: ── Window 3: Cursiv Sacred UI (Streamlit port 8501) ───────────────
+:: Window 3: Cursiv Sacred UI (port 8501)
 echo   Starting Cursiv Sacred UI    (port 8501)...
-start "Cursiv Sacred UI — Port 8501" cmd /k ^
-    "title Cursiv Sacred UI ^| Port 8501 && color 07 && cd /d "%~dp0" && echo. && echo  CURSIV SACRED UI — http://localhost:8501 && echo. && python -m streamlit run cursiv_v215/ui/app.py --server.port 8501 --server.headless false --browser.gatherUsageStats false"
+start "Cursiv Sacred UI - Port 8501" cmd /k "cd /d "%~dp0" && python -m streamlit run cursiv_v215/ui/app.py --server.port 8501 --server.headless false --browser.gatherUsageStats false"
 
-:: ── Window 4 (optional): Ollama local inference ────────────────────
+:: Window 4: Ollama (optional)
 if %OLLAMA_FOUND% equ 1 (
     echo   Starting Ollama local model  (mistral)...
-    start "Ollama — Local Inference" cmd /k "title Ollama ^| Local Inference && ollama run mistral"
+    start "Ollama - Local Inference" cmd /k "ollama run mistral"
     timeout /t 2 /nobreak >nul
 )
 
-:: ── Window 5 (optional): Conversation Watcher background ───────────
-echo   Starting conversation watcher (training data collector)...
-start "Cursiv Watcher — Training Collector" cmd /k ^
-    "title Cursiv Watcher ^| Training Collector && color 07 && cd /d "%~dp0" && echo. && echo  CONVERSATION WATCHER — collecting training examples && echo  Quality threshold: 0.65  Poll interval: 15s && echo. && python -m cursiv_v215.training.watcher"
+:: Window 5: Training watcher
+echo   Starting conversation watcher...
+start "Cursiv Watcher - Training Collector" cmd /k "cd /d "%~dp0" && python -m cursiv_v215.training.watcher"
 
 echo.
 
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
 ::  OPEN BROWSERS
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
 
 echo  Waiting for servers to initialize...
 timeout /t 5 /nobreak >nul
 
 echo  Opening browser tabs...
-echo.
-
-:: Open all three in browser with staggered delays
 start "" "http://localhost:7860"
 timeout /t 1 /nobreak >nul
 start "" "http://localhost:7861"
 timeout /t 1 /nobreak >nul
 start "" "http://localhost:8501"
 
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
 ::  DONE
-:: ═══════════════════════════════════════════════════════════════════
+:: ================================================================
 
 echo.
 echo  ================================================================
@@ -176,21 +173,18 @@ echo   Cursiv Sacred UI http://localhost:8501  [RUNNING]
 if %OLLAMA_FOUND% equ 1 (
 echo   Ollama Mistral   local inference        [RUNNING]
 )
-echo   Training Watcher background collector   [RUNNING]
+echo   Training Watcher background             [RUNNING]
 echo.
 echo  ================================================================
 echo.
 echo   HOW TO USE:
-echo   1. Paste your xAI API key in the Chat window (port 7860)
-echo   2. Open the Nexus (port 7861) alongside to repurpose agents
+echo   1. Keys loaded from secrets.bat automatically
+echo   2. Open the Nexus (port 7861) to repurpose agents
 echo   3. Use the Sacred UI (port 8501) to create and evolve agents
-echo   4. Training Watcher auto-collects good exchanges in background
+echo   4. Training Watcher auto-collects good exchanges
 echo.
-echo   To stop the system: close all component windows individually
-echo   or press Ctrl+C in each window.
+echo   Close individual windows to stop each component.
 echo.
 echo  ================================================================
-echo.
-echo  This launcher window can now be closed.
 echo.
 pause

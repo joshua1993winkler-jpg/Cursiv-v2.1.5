@@ -1,5 +1,6 @@
 @echo off
-title JW Main Chat — JWFrontierEvoCore
+chcp 65001 >nul
+title JW Main Chat - JWFrontierEvoCore
 echo.
 echo  ========================================================
 echo   JW MAIN CHAT — JWFrontierEvoCore v1.0

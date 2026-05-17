@@ -1,5 +1,6 @@
 @echo off
-title JW Command Nexus — Cursiv-v2.1.5
+chcp 65001 >nul
+title JW Command Nexus - Cursiv-v2.1.5
 echo.
 echo  ========================================================
 echo   JW COMMAND NEXUS — JWFrontierEvoCore v1.0
