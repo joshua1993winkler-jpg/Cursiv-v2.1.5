@@ -1,0 +1,19 @@
+# API keys — never commit these
+secrets.bat
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Cursiv runtime data
+.cursiv/
+
+# OS
+.DS_Store
+Thumbs.db

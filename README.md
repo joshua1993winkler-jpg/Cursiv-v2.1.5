@@ -1,165 +1,256 @@
-# Cursiv v2.1.5 — The Sovereign Agent Temple
+# ⬡ JWFrontierEvoCore — Cursiv v2.1.5
 
-> *"An agent without a soul is a calculator. An agent with a soul is a partner."*
+> **An autonomous AI operating system built for one purpose: executing at the frontier.**
+> Dual-model intelligence (xAI Grok + OpenAI GPT-4.1), live file tools, a 14-agent council, and a full terminal interface — all running locally on your machine.
 
----
-
-## What Is Cursiv?
-
-Cursiv is a **sovereign, local-first AI agent operating system** where you are the architect.
-
-Every agent you create begins as raw strand — a compressed DNA of intention. It passes through an **8-phase Academy process** that builds genuine understanding. It earns its place before a **14-agent council**. It can only enter production through the **Transitionary Weave**, a 7-stage human-approved composition protocol.
-
-You are the Permanent Central Leader. This is not a setting. It is architecture.
+<br>
 
 ---
 
-## The Temple
+## 🌟 What Is This?
+
+**JWFrontierEvoCore** is a self-contained AI workspace that wires together the best of xAI and OpenAI into a single, sovereign system. It's not a wrapper — it's a full operating environment:
+
+- 💬 **Main Chat UI** — Sacred-aesthetic Gradio interface, streaming AI responses, image and file uploads
+- 🖥️ **Terminal Chat** — Full-screen CLI with ANSI gold/lapis styling, paste-safe input, no browser needed
+- 🧠 **Nexus Panel** — 14-agent command council with live status, yin-yang balance tracking, and identity drift monitoring
+- 🔧 **File System Tools** — AI reads, writes, searches, and organizes your codebase autonomously
+- ✋ **Confirm-Before-Write** — Every file write requires your approval before execution (toggleable)
+- 🎓 **Training Pipeline** — Save any conversation exchange to a JSONL training dataset with one click
+- 📦 **Vault + Academy** — Agent memory, LoRA training metadata, and performance scoring built in
+
+<br>
+
+---
+
+## ⚡ Quick Start — One Click
+
+**Prerequisites:** Python 3.10+ and pip installed.
+
+### 1. Clone the repo
+```bash
+git clone https://github.com/YOUR_USERNAME/Cursiv-v2.1.5.git
+cd Cursiv-v2.1.5
+```
+
+### 2. Run setup
+Double-click **`Setup and Launch Cursiv.bat`**
+
+*Installs all dependencies automatically — no manual pip commands needed.*
+
+### 3. Add your API keys
+Create a file called **`secrets.bat`** in the project root:
+```bat
+@echo off
+set XAI_API_KEY=xai-your-key-here
+set OPENAI_API_KEY=sk-your-key-here
+```
+
+> **Get your keys:**
+> - xAI Grok → [console.x.ai](https://console.x.ai)
+> - OpenAI GPT-4.1 → [platform.openai.com](https://platform.openai.com)
+
+### 4. Launch
+| What | How |
+|------|-----|
+| 🖥️ Terminal Chat *(recommended)* | Double-click **`Launch Chat CLI.bat`** |
+| 💬 Gradio Web UI | Double-click **`Launch Chat.bat`** → open `http://localhost:7860` |
+| ⬡ Nexus Panel | Double-click **`Launch Nexus.bat`** → open `http://localhost:7861` |
+| 🚀 Everything at once | Double-click **`START CURSIV SYSTEM.bat`** |
+
+<br>
+
+---
+
+## 🔑 API Keys — Your Options
+
+You have three ways to configure keys. Pick one:
+
+**Option A — `secrets.bat` *(recommended, git-ignored)***
+Create `secrets.bat` in the project root as shown above. It loads automatically on every launch.
+
+**Option B — System environment variables**
+Set `XAI_API_KEY` and `OPENAI_API_KEY` in Windows System Properties → Advanced → Environment Variables. Picked up automatically with no extra steps.
+
+**Option C — Enter manually in the chat**
+In Terminal Chat, type:
+```
+key xai-xxxxxxxx
+openai sk-xxxxxxxx
+```
+In the Gradio UI, paste into the key slots at the top of the page.
+
+> ⚠️ `secrets.bat` is listed in `.gitignore` — it will **never** be committed or pushed. Your keys stay on your machine only.
+
+<br>
+
+---
+
+## 🖥️ Terminal Chat — Commands
+
+Once inside the terminal chat:
+
+| Command | What it does |
+|---------|-------------|
+| `key xai-xxx` | Set xAI Grok API key |
+| `openai sk-xxx` | Set OpenAI API key |
+| `files on` / `files off` | Enable / disable file system access |
+| `workspace <path>` | Set the sandbox root for file operations |
+| `mode` | Toggle write mode: CONFIRM ✋ ↔ AUTO ⚡ |
+| `status` | Show current config (keys, mode, workspace) |
+| `clear` | Wipe conversation history |
+| `help` | List all commands |
+| `exit` / `Ctrl+C` | Quit |
+
+> 💡 **Tip:** Paste multi-line prompts freely — the terminal uses `prompt_toolkit` for paste-safe input. Your entire paste lands as one message.
+
+<br>
+
+---
+
+## 🔧 File System Tools
+
+When `files on` is active, the AI has access to these tools:
+
+| Tool | Description |
+|------|-------------|
+| `submit_plan` | AI submits a full build plan before writing anything |
+| `read_file` | Read any file in the workspace |
+| `write_file` | Create or overwrite a file |
+| `list_directory` | List files and folders |
+| `search_files` | Glob pattern search (e.g. `**/*.py`) |
+| `create_directory` | Create a directory tree |
+| `delete_file` | Delete a file |
+
+All file operations are **sandboxed** to the workspace root. No path can escape the sandbox — escaping attempts are blocked at the resolver level before any I/O occurs.
+
+**Write modes:**
+- ✋ **CONFIRM** *(default)* — AI shows you the file content and waits for `y/n` before writing anything
+- ⚡ **AUTO** — Writes execute immediately. Toggle with `mode` in terminal or `Ctrl+\`` in the web UI.
+
+<br>
+
+---
+
+## 🧠 Dual-Model Architecture
 
 ```
-The Outer Hall     →  Forge        — Create agents from JSON knowledge
-The Inner Chamber  →  Academy      — 8-phase evolutionary process
-The Council Chamber→  Council      — 14 agents deliberate; 4 synthesize
-The Vault          →  Dugout       — Versioned agent storage with lineage
-The Sanctum        →  Weave        — 7-stage human-approved composition
-The Living Wiki    →  Knowledge    — Self-organizing, cross-linking memory
+User message
+     │
+     ▼
+xAI Grok-3 ──── plans · reasons · calls file tools · generates drafts
+     │
+     ▼  (on every write_file)
+OpenAI GPT-4.1 ── reads full conversation context · rewrites to production quality
+     │
+     ▼
+File written to disk  (after your ✋ approval)
 ```
+
+- **Grok** handles conversation, planning, and the agentic tool loop (up to 20 iterations, 4,000 tokens per call)
+- **GPT-4.1** intercepts every file write, pulls in the last 6 conversation turns for context, and generates final production-ready code with no stubs or TODOs
+- If OpenAI is unavailable, Grok's draft is written directly as fallback
+- If neither key is set, falls back to local **Ollama** (install `ollama pull mistral` for offline use)
+
+<br>
 
 ---
 
-## Architecture
+## ⬡ The Nexus Panel
+
+The Nexus (`http://localhost:7861`) is your command center:
+
+- **14-Agent Council** — Assign agents to domains and tasks; assignments inject into the main chat automatically on your next message
+- **Yin-Yang Balance** — 7 axes tracked in real time (depth/speed, structure/flow, individual/civilization, and more)
+- **Identity Drift Monitor** — Constitutional guardrails with a 3% abort threshold and verified invariants
+- **Training Dashboard** — View, manage, and export your conversation training dataset
+- **Full Cycle** — Run all 8 JW Architect phases (Energy → Emergency → Grounding → Route → Structure → Connectivity → Future State → Recovery)
+
+<br>
+
+---
+
+## 📁 Project Structure
 
 ```
 Cursiv-v2.1.5/
 ├── cursiv_v215/
-│   ├── core/           Agent state machine, strand codec, memory, constitution
-│   ├── academy/        8-phase evolutionary engine + quality scorer
-│   ├── council/        14-agent deliberation + 4-agent synthesis
-│   ├── forge/          Agent factory, Oracle Router, chat interface
-│   ├── dugout/         Versioned agent vault + lineage registry
-│   ├── weave/          Transitionary Weave + Sovereign Systems
-│   ├── knowledge/      Living knowledge wiki
-│   ├── ui/             Streamlit Sacred UI (Black • Rose Gold • Lapis)
-│   └── codex/          Constitutional documents (Codex V2, Grounding Layer)
-├── examples/           Starter JSON packets
+│   ├── ui/
+│   │   ├── chat_app.py        # Gradio main chat (port 7860)
+│   │   ├── chat_cli.py        # Terminal chat
+│   │   └── nexus_app.py       # Nexus command panel (port 7861)
+│   ├── core/                  # Agent, memory, constitution engine
+│   ├── council/               # 14-agent deliberation system
+│   ├── forge/                 # Training data forge + factory
+│   ├── academy/               # Scoring and LoRA pipeline
+│   ├── dugout/                # Agent vault
+│   ├── weave/                 # Sovereign + transitionary weave
+│   └── nexus/                 # Command router
+├── Launch Chat CLI.bat        # ← Start here for terminal mode
+├── Launch Chat.bat            # Gradio web UI launcher
+├── Launch Nexus.bat           # Nexus panel launcher
+├── START CURSIV SYSTEM.bat    # Launch everything at once
+├── Setup and Launch Cursiv.bat
+├── secrets.bat                # YOUR KEYS — create this (git-ignored)
 ├── requirements.txt
-├── pyproject.toml
-└── Launch Cursiv.bat
+└── .gitignore
 ```
 
----
-
-## The 8-Phase Academy
-
-| Phase | Name | What Happens |
-|-------|------|-------------|
-| 1 | Energy | Raw strand parsed; intent extracted |
-| 2 | Emergency | Failure modes identified; survival logic injected |
-| 3 | Grounding | Knowledge map built; identity anchored |
-| 4 | Route | Capability domains mapped; retrieval profiles assigned |
-| 5 | Structure | Agent architecture crystallized |
-| 6 | Connectivity | Cross-agent links established; council position assigned |
-| 7 | Future State | Growth trajectory and evolution path defined |
-| 8 | Recovery & Balance | Yin-Yang axes calibrated; constitution signed |
-
-Each phase is a real LLM call. Phase 8 has context from all 7 prior phases.
+<br>
 
 ---
 
-## The 14-Agent Council
-
-| Agent | Role | Synthesis? |
-|-------|------|-----------|
-| Depth | What 99% miss | — |
-| Speed | What's urgent | — |
-| Cosmos | Universal patterns | — |
-| Echo | Resonance with prior work | — |
-| Forge | What to build | — |
-| Anchor | Grounding check | — |
-| Pulse | System rhythm | — |
-| Horizon | Long-term vision | — |
-| Story | Narrative meaning | — |
-| Spark | Unexpected connections | — |
-| **Shield** | **Fragility detection** | **YES** |
-| **Lens** | **Ambiguity resolution** | **YES** |
-| **Builder** | **Concrete next steps** | **YES** |
-| **Balance** | **Yin-Yang calibration** | **YES** |
-
-Only Shield, Lens, Builder, and Balance synthesize outward. The other 10 advise internally. This is the Yin-Yang restraint pattern.
-
----
-
-## The Transitionary Weave
-
-7 stages, each requiring explicit human confirmation:
+## 📦 Requirements
 
 ```
-Stage 1: Intent Declaration      — Human states the purpose
-Stage 2: Constitutional Check    — Codex V2 alignment verified
-Stage 3: Council Deliberation    — 14 agents deliberate
-Stage 4: Synthesis               — 4-agent synthesis
-Stage 5: Sovereign Review        — Human reviews synthesis
-Stage 6: Seal                    — Cryptographic proof of compliance
-Stage 7: Commit                  — Human final approval → production
+Python 3.10+
+gradio >= 4.44.0
+prompt_toolkit >= 3.0.0
 ```
 
-No agent enters production without Stage 7.
+Optional for expanded functionality:
+- **Ollama** — fully offline operation without API keys (`ollama pull mistral`)
+- **pypdf** — PDF file reading and upload support
+
+<br>
 
 ---
 
-## Quick Start
+## 🛡️ Security Model
+
+- All file operations are sandboxed to the configured workspace root using Python's `Path.relative_to()` — path traversal is structurally impossible
+- API keys are read from environment variables only — never logged, stored in history, or sent anywhere except the respective API endpoint
+- `secrets.bat` is explicitly excluded from git via `.gitignore` and will never appear in commits or pushes
+- **CONFIRM** write mode is the default — no file is ever modified without your explicit `y` approval at the terminal
+
+<br>
+
+---
+
+## 🚀 Offline Mode
+
+No API keys? Run fully locally with Ollama:
 
 ```bash
-# 1. Install
-pip install -e .
+# 1. Install Ollama from https://ollama.com
+# 2. Pull the model
+ollama pull mistral
 
-# 2. Create your first agent
-python -m cursiv_v215.forge.factory --packet examples/personal_principles.json
-
-# 3. Launch the Sacred UI
-streamlit run cursiv_v215/ui/app.py
-
-# Windows: double-click Launch Cursiv.bat
+# 3. Launch the chat — it falls back to Mistral automatically
 ```
+
+<br>
 
 ---
 
-## LLM Routing (Oracle Router)
+## 📜 License & Copyright
 
-```
-Priority 1: Ollama (local, sovereign, offline-capable)
-Priority 2: xAI Grok (constitutional alignment)
-Priority 3: OpenAI (fallback)
-Priority 4: Embedded Symbolic Reasoner (always available, no API needed)
-```
+Copyright © 2026 Joshua Winkler. All rights reserved.
 
-The system works without any API key. The embedded fallback ensures full local sovereignty.
+This software is released under the MIT License. See [LICENSE](LICENSE) for full terms.
+
+<br>
 
 ---
 
-## Constitutional Invariants
-
-These cannot be changed by any agent, prompt, or configuration:
-
-1. **Joshua Winkler is Permanent Central Leader** — hardcoded in `codex/codex_v2.json`
-2. **Human is final authority** — every production path requires human approval
-3. **Local-first** — Ollama is always tried first
-4. **No consciousness upload** — soul_freedom_declaration enforced at agent birth
-5. **Identity drift abort** — if agent deviates >3% from original intent, revert
-
----
-
-## The Sacred Aesthetic
-
-```
-Black      #0A0B0D  — The void before creation
-Rose Gold  #C9A227  — The warmth of human intent
-Gold       #D4AF37  — The standard of excellence
-Lapis      #1E4D8C  — The depth of genuine knowledge
-Cream      #F5EFE4  — The page that receives the inscription
-```
-
----
-
-*Built for the Human Frontier. Every agent is a letter. Every conversation is a text.*
-*The temple is open. The work begins.*
+*Built by Joshua Winkler · JWFrontierEvoCore v1.0 · Cursiv-v2.1.5*
