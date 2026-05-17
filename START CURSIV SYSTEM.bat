@@ -4,6 +4,11 @@ title Cursiv v3.0 -- Full System Boot
 color 07
 cd /d "%~dp0"
 
+:: %~dp0 always ends with \  e.g. C:\path\to\repo\
+:: "path\" tricks cmd into treating \" as an escaped quote -- strip it
+set "SDIR=%~dp0"
+if "%SDIR:~-1%"=="\" set "SDIR=%SDIR:~0,-1%"
+
 echo.
 echo  ================================================================
 echo   Cursiv v3.0
@@ -101,23 +106,23 @@ echo  [4/5] Booting components (staggered launch)...
 echo.
 
 echo   [1/6] JW Main Chat          port 7860 ...
-start "JW Main Chat - 7860" /D "%~dp0" cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_app"
+start "JW Main Chat - 7860" /D "%SDIR%" cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_app"
 timeout /t 5 /nobreak >nul
 
 echo   [2/6] JW Command Nexus      port 7861 ...
-start "JW Command Nexus - 7861" /D "%~dp0" cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.nexus_app"
+start "JW Command Nexus - 7861" /D "%SDIR%" cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.nexus_app"
 timeout /t 4 /nobreak >nul
 
 echo   [3/6] Cursiv Sacred UI      port 8501 ...
-start "Cursiv Sacred UI - 8501" /D "%~dp0" cmd /k "if exist secrets.bat call secrets.bat && python -m streamlit run cursiv_v215/ui/app.py --server.port 8501 --server.headless false --browser.gatherUsageStats false"
+start "Cursiv Sacred UI - 8501" /D "%SDIR%" cmd /k "if exist secrets.bat call secrets.bat && python -m streamlit run cursiv_v215/ui/app.py --server.port 8501 --server.headless false --browser.gatherUsageStats false"
 timeout /t 4 /nobreak >nul
 
 echo   [4/6] Terminal Chat CLI     (maximized)...
-start "JW Terminal Chat" /D "%~dp0" /MAX cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_cli"
+start "JW Terminal Chat" /D "%SDIR%" /MAX cmd /k "if exist secrets.bat call secrets.bat && python -m cursiv_v215.ui.chat_cli"
 timeout /t 2 /nobreak >nul
 
 echo   [5/6] Training Watcher      (background)...
-start "Training Watcher" /D "%~dp0" cmd /k "python -m cursiv_v215.training.watcher"
+start "Training Watcher" /D "%SDIR%" cmd /k "python -m cursiv_v215.training.watcher"
 timeout /t 2 /nobreak >nul
 
 if %OLLAMA_FOUND% equ 1 (
