@@ -112,6 +112,17 @@ def _write_default_territories() -> None:
 
 # ── Core API ─────────────────────────────────────────────────────────────────
 
+def _find_linked(query: str, synthesis: str, link_threshold: float = 0.25) -> list[str]:
+    """Return IDs of existing strands with Jaccard similarity above threshold."""
+    q_tokens = _tokenize(query + " " + synthesis)
+    linked   = []
+    for s in _load_all():
+        e_tokens = _tokenize(s.get("query", "") + " " + s.get("synthesis", ""))
+        if _jaccard(q_tokens, e_tokens) >= link_threshold:
+            linked.append(s["id"])
+    return linked[:5]  # cap at 5 links
+
+
 def save_strand(
     query: str,
     synthesis: str,
@@ -121,6 +132,7 @@ def save_strand(
     territory_tag: str = "general",
     source: str = "anchor",
     model: str = "unknown",
+    provenance: dict | None = None,
 ) -> str:
     """Encode and persist a Strand. Returns the 8-char strand_id."""
     CURSIV_DIR.mkdir(parents=True, exist_ok=True)
@@ -131,18 +143,25 @@ def save_strand(
         "territory": territory_tag,
     }
     encoded = _strand_encode(knowledge)
+    linked  = _find_linked(query, synthesis)
 
     entry: dict[str, Any] = {
-        "id":            strand_id,
-        "strand":        encoded,
-        "query":         query.strip()[:500],
-        "synthesis":     synthesis.strip()[:1000],
-        "tags":          tags or [],
-        "score":         round(float(score), 3),
-        "timestamp":     time.time(),
-        "territory_tag": territory_tag,
-        "source":        source,
-        "model":         model,
+        "id":             strand_id,
+        "strand":         encoded,
+        "query":          query.strip()[:500],
+        "synthesis":      synthesis.strip()[:1000],
+        "tags":           tags or [],
+        "score":          round(float(score), 3),
+        "timestamp":      time.time(),
+        "territory_tag":  territory_tag,
+        "source":         source,
+        "model":          model,
+        "linked_strands": linked,
+        "provenance":     provenance or {
+            "source_models": [model],
+            "human_rated":   False,
+            "confidence":    round(float(score), 3),
+        },
     }
     with STRANDS_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")

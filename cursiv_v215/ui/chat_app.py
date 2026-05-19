@@ -102,6 +102,31 @@ except Exception:
     def _ref_available() -> bool:                   return False
     def _ref_status() -> dict:                      return {"available": False}
 
+# ── Web Search Cache — TTL cache for search results ───────────────────────
+try:
+    from cursiv_v215.core.web_cache import (
+        get_cached   as _wcache_get,
+        store        as _wcache_store,
+        evict_expired as _wcache_evict,
+    )
+    _WCACHE_OK = True
+except Exception:
+    _WCACHE_OK = False
+    def _wcache_get(q, **kw): return None  # type: ignore[misc]
+    def _wcache_store(q, r, **kw): pass
+    def _wcache_evict(): return 0
+
+# ── Strand Federation — import/export ─────────────────────────────────────
+try:
+    from cursiv_v215.core.strand_federation import (
+        export_pack as _sfed_export,
+        import_pack as _sfed_import,
+        pack_summary as _sfed_summary,
+    )
+    _SFED_OK = True
+except Exception:
+    _SFED_OK = False
+
 # ── Strand Store — persistent memory retrieval ────────────────────────────
 try:
     from cursiv_v215.core.strand_store import (
@@ -322,10 +347,10 @@ def _brave_search(query: str, max_results: int = 4) -> str:
 
 def _web_search(query: str, max_results: int = 4) -> str:
     """
-    Worldwide real-time web search.
-    Uses Brave Search API if BRAVE_API_KEY is set (2000 free queries/month).
-    Falls back to DuckDuckGo (zero config, zero cost, worldwide).
-    Returns formatted snippets or empty string on failure/offline.
+    Worldwide real-time web search with TTL cache.
+    Cache-first: returns cached result within 24h TTL.
+    Falls back to cache (marked [cached]) when offline.
+    Uses Brave Search API if BRAVE_API_KEY is set, else DuckDuckGo.
     """
     q = query.strip()
     if not q:
@@ -334,11 +359,34 @@ def _web_search(query: str, max_results: int = 4) -> str:
         if q.lower().startswith(prefix):
             q = q[len(prefix):].strip()
             break
+
+    # Cache check (fresh hit — serve without touching network)
+    if _WCACHE_OK:
+        hit = _wcache_get(q)
+        if hit:
+            result, fresh = hit
+            if fresh:
+                return result
+
+    # Live search
+    live_result = ""
     if BRAVE_KEY:
-        result = _brave_search(q, max_results)
-        if result:
-            return result
-    return _ddg_search(q, max_results)
+        live_result = _brave_search(q, max_results)
+    if not live_result:
+        live_result = _ddg_search(q, max_results)
+
+    if live_result and _WCACHE_OK:
+        _wcache_store(q, live_result)
+        return live_result
+
+    # Offline fallback — serve stale cache with label
+    if _WCACHE_OK and not live_result:
+        stale = _wcache_get(q, allow_stale=True)
+        if stale:
+            result, _ = stale
+            return f"[cached — offline fallback]\n{result}"
+
+    return live_result
 
 # ── File tool definitions (xAI / OpenAI tool-call schema) ─────────────────
 FILE_TOOLS = [
@@ -2054,11 +2102,24 @@ def _call_group_discovery(
 
     responses: dict[str, str] = {}   # name → full response text
 
+    # Inject relevant Strand prior wisdom into the first (Cursiv) message.
+    # These are Joshua's own anchored insights — not external AI influence.
+    _strand_prior = ""
+    if _STRAND_APP_OK and _strand_count() > 0:
+        _strand_prior = _build_strand_context(question, top_k=2)
+
     for i, (name, key) in enumerate(providers):
         yield f"\n---\n**[ {name} ]**\n"
 
         if i == 0:
-            text_msgs = [{"role": "user", "content": question}]
+            q_with_memory = question
+            if _strand_prior:
+                q_with_memory = (
+                    f"{question}\n\n"
+                    f"[Relevant prior insights from your personal Strand archive:]\n"
+                    f"{_strand_prior}"
+                )
+            text_msgs = [{"role": "user", "content": q_with_memory}]
         else:
             prior = "\n\n".join(
                 f"**{n}:** {r[:600]}" for n, r in responses.items()
@@ -2140,6 +2201,33 @@ def _call_group_discovery(
                 yield chunk
                 synth_chunks.append(chunk)
         synthesis_text = "".join(synth_chunks)
+
+    # ── Local Constitutional Final Synthesis (Cursiv speaks last) ────────────
+    # The local council is both the uninfluenced first voice and the final
+    # synthesizer. External models are advisors — the constitutional kernel
+    # always holds final synthesis authority.
+    if len(responses) > 1 and synthesis_text:
+        yield "\n\n---\n**[ LOCAL COUNCIL — FINAL WORD ]**\n"
+        final_context = "\n\n".join(f"{n}: {r[:400]}" for n, r in responses.items())
+        final_msgs = [{"role": "user", "content": (
+            f"Question: {question}\n\n"
+            f"External AI analyses:\n{final_context}\n\n"
+            f"External synthesis:\n{synthesis_text[:600]}\n\n"
+            f"You are the local constitutional council. Speak from first principles. "
+            f"What do YOU conclude — independent of what the external systems said? "
+            f"Where do you agree, where do you differ, and what is the most grounded answer? "
+            f"Be direct. This is the final word before the human decides."
+        )}]
+        final_chunks: list[str] = []
+        try:
+            for chunk in _call_ollama(final_msgs):
+                if chunk != RATE_SENTINEL:
+                    yield chunk
+                    final_chunks.append(chunk)
+        except Exception:
+            pass
+        if final_chunks:
+            synthesis_text = "".join(final_chunks)
 
     # ── Cursiv binary snapshot (shareable on X / scan with Grok) ─────────────
     yield "\n\n---\n**[ CURSIV BINARY SNAPSHOT ]**\n"

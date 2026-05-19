@@ -179,6 +179,22 @@ except Exception:
     def _queue_format_cli() -> str:               return ""
     def _queue_count_cli() -> int:                return 0
 
+# ── Strand Federation — air-gapped pack export / import ───────────────────
+try:
+    from cursiv_v215.core.strand_federation import (
+        export_pack  as _sfed_export,
+        import_pack  as _sfed_import,
+        pack_summary as _sfed_summary,
+        PACK_EXT     as _PACK_EXT,
+    )
+    _SFED_OK = True
+except Exception:
+    _SFED_OK = False
+    def _sfed_export(*a, **kw) -> str:        return ""
+    def _sfed_import(t) -> tuple:             return [], {}, {}
+    def _sfed_summary(s, m) -> str:           return ""
+    _PACK_EXT = ".cursivpack"
+
 # ── Strand Store — persistent memory across sessions ──────────────────────
 try:
     from cursiv_v215.core.strand_store import (
@@ -691,8 +707,13 @@ _HELP = f"""\
   {LGOLD}anchor this <territory>{RESET}   same, tagged to a domain
                             territories: coding  recovery  architecture  creative  worldmodel
   {LGOLD}strands{RESET}                   show recent Strand archive + territory counts
-  {LGOLD}strands <territory>{RESET}       filter by territory (e.g.  strands coding)
+  {LGOLD}strands <territory>{RESET}       filter by territory  (e.g.  strands coding)
   {LGOLD}strands search <query>{RESET}    semantic search across all Strands
+  {LGOLD}strand export{RESET}             export all Strands to a .cursivpack file (USB/LAN transfer)
+  {LGOLD}strand export <territory>{RESET} export one territory only
+  {LGOLD}strand import <file>{RESET}      Guardian-verified, human-approved import from a pack file
+  {LGOLD}remember <query>{RESET}          pure local memory search — zero cloud, zero API
+  {LGOLD}pull <url>{RESET}                fetch + analyze any URL → auto-strand the insight
                             Council syntheses auto-anchor at quality > 0.75
 
   {GOLD}── FunForge (bounded creative spike) ───────────────────────────{RESET}
@@ -1085,6 +1106,170 @@ def main() -> None:
                 if total > 8:
                     print(f"\n  {DIM}… and {total - 8} more.  strands <territory>  ·  strands search <query>{RESET}")
             print()
+            continue
+
+        # ── Strand export / import ────────────────────────────────────────
+        elif cmd.startswith("strand export") or cmd == "strand export":
+            if not (_STRAND_OK and _SFED_OK):
+                print(f"  {RED}Strand federation unavailable.{RESET}")
+                continue
+            parts     = cmd.split()
+            territory = parts[2] if len(parts) >= 3 else None
+            all_s     = _strand_list(territory=territory, limit=5000)
+            if not all_s:
+                t_label = f" in '{territory}'" if territory else ""
+                print(f"  {DIM}No strands{t_label} to export.{RESET}")
+                continue
+            terr_defs = _strand_territories()
+            label     = f"cursiv-{territory or 'all'}"
+            pack_text = _sfed_export(all_s, terr_defs, label=label)
+            out_name  = ROOT / f"{label}-{int(datetime.now().timestamp())}{_PACK_EXT}"
+            try:
+                out_name.write_text(pack_text, encoding="utf-8")
+                print(f"\n  {GOLD}⬡ Strand Pack Exported{RESET}")
+                print(f"  {LGOLD}File    :{RESET}  {out_name.name}")
+                print(f"  {LGOLD}Strands :{RESET}  {len(all_s)}")
+                t_label = territory or "all territories"
+                print(f"  {LGOLD}Scope   :{RESET}  {t_label}")
+                print(f"  {DIM}Transfer via USB / LAN. Import with:  strand import <filename>{RESET}\n")
+            except Exception as _e:
+                print(f"  {RED}Export failed: {_e}{RESET}")
+            continue
+
+        elif cmd.startswith("strand import "):
+            if not (_STRAND_OK and _SFED_OK):
+                print(f"  {RED}Strand federation unavailable.{RESET}")
+                continue
+            pack_path = Path(cmd[14:].strip())
+            if not pack_path.exists():
+                print(f"  {RED}File not found: {pack_path}{RESET}")
+                continue
+            try:
+                pack_text = pack_path.read_text(encoding="utf-8")
+                in_strands, _in_terr, meta = _sfed_import(pack_text)
+            except ValueError as _ve:
+                print(f"  {RED}Pack verification failed: {_ve}{RESET}")
+                continue
+            print(f"\n  {GOLD}⬡ STRAND PACK IMPORT — REVIEW{RESET}")
+            print(_sfed_summary(in_strands, meta))
+            if not meta.get("same_machine"):
+                print(f"\n  {RED}⚠  Cross-machine pack. Signature does not match this instance.{RESET}")
+                print(f"  {DIM}This is expected for packs transferred between different machines.{RESET}")
+            try:
+                answer = input(f"\n  {GOLD}Import {len(in_strands)} strands?{RESET}  {DIM}[y/N]{RESET}  ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                answer = "n"
+            if answer != "y":
+                print(f"  {DIM}Import cancelled.{RESET}\n")
+                continue
+            imported = 0
+            for _s in in_strands:
+                try:
+                    _strand_save(
+                        _s.get("query", ""),
+                        _s.get("synthesis", ""),
+                        tags=(_s.get("tags") or []) + ["federated_import"],
+                        score=_s.get("score", 0.70),
+                        territory_tag=_s.get("territory_tag", "general"),
+                        source="federation",
+                        model=_s.get("model", "unknown"),
+                        provenance={"source_models": [_s.get("model", "?")],
+                                    "federated": True, "pack_label": meta.get("label", "?")},
+                    )
+                    imported += 1
+                except Exception:
+                    pass
+            print(f"  {GREEN}Imported {imported}/{len(in_strands)} strands.{RESET}\n")
+            continue
+
+        # ── remember — pure local memory retrieval (zero cloud) ───────────
+        elif cmd.startswith("remember ") or cmd == "remember":
+            if not _STRAND_OK:
+                print(f"  {RED}Strand store unavailable.{RESET}")
+                continue
+            q = cmd[9:].strip() if cmd.startswith("remember ") else ""
+            if not q:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}remember <query>{RESET}")
+                continue
+            print(f"\n  {GOLD}⬡ Local Memory — {RESET}{DIM}{q}{RESET}")
+            print(f"  {SILV2}Zero cloud. Zero API. Searching personal Strand archive only.{RESET}\n")
+            results = _strand_search(q, top_k=5, min_score=0.08)
+            if not results:
+                print(f"  {DIM}No matching strands found. Anchor exchanges with:  anchor this{RESET}\n")
+            else:
+                print(_strand_fmt(results))
+                print()
+            continue
+
+        # ── pull <url> — fetch, analyze, strand ───────────────────────────
+        elif cmd.startswith("pull "):
+            url = cmd[5:].strip()
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+            print(f"\n  {GOLD}⬡ Page Pull —{RESET} {DIM}{url[:70]}{RESET}")
+            try:
+                import urllib.request as _pur
+                import re as _pre
+                req = _pur.Request(url, headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; Cursiv/3.14)",
+                })
+                with _pur.urlopen(req, timeout=12) as _resp:
+                    raw_bytes = _resp.read(65_536)  # 64 KB max
+                charset = "utf-8"
+                raw_html = raw_bytes.decode(charset, errors="replace")
+                # Strip scripts, styles, tags, entities
+                text = _pre.sub(r"(?s)<(script|style)[^>]*>.*?</\1>", " ", raw_html, flags=_pre.IGNORECASE)
+                text = _pre.sub(r"<[^>]+>", " ", text)
+                text = _pre.sub(r"&[a-zA-Z]{2,6};", " ", text)
+                text = _pre.sub(r"\s+", " ", text).strip()
+                text = text[:4000]
+                if len(text) < 80:
+                    print(f"  {DIM}Page returned too little text — may require JavaScript.{RESET}\n")
+                    continue
+                print(f"  {DIM}{len(text)} chars extracted — analyzing with local council…{RESET}\n")
+            except Exception as _fe:
+                print(f"  {RED}Fetch failed: {_fe}{RESET}\n")
+                continue
+
+            pull_msgs = [{
+                "role": "user",
+                "content": (
+                    f"URL: {url}\n\n"
+                    f"Content:\n{text}\n\n"
+                    f"Analyze this page. Provide:\n"
+                    f"1. Core thesis or main insight (1-2 sentences)\n"
+                    f"2. Key facts or data points worth remembering\n"
+                    f"3. Any connection to current work or prior thinking\n"
+                    f"Be precise. No filler."
+                ),
+            }]
+            print(f"  {LGOLD}[Local Council analyzing…]{RESET}\n")
+            full_pull = ""
+            try:
+                for chunk in _call_ollama(pull_msgs):
+                    if chunk != RATE_SENTINEL:
+                        safe = chunk.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                        sys.stdout.write(safe)
+                        sys.stdout.flush()
+                        full_pull += chunk
+                print()
+            except Exception as _pe:
+                print(f"  {RED}Analysis failed: {_pe}{RESET}")
+                continue
+            # Auto-strand the synthesis
+            if _STRAND_OK and full_pull:
+                _sid = _strand_save(
+                    f"pull: {url}",
+                    full_pull,
+                    tags=["pull", "web"],
+                    score=0.72,
+                    territory_tag="worldmodel",
+                    source="pull",
+                    model="ollama",
+                    provenance={"source_models": ["ollama"], "web_sources": [url], "human_rated": False},
+                )
+                print(f"\n  {GOLD}⬡ Stranded → {_sid}  [worldmodel]{RESET}\n")
+            _session_append_cli(f"pull {url}", full_pull, "pull")
             continue
 
         elif cmd.startswith("rate"):
