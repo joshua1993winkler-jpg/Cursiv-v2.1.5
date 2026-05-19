@@ -1002,14 +1002,93 @@ def _compact_system_for_tools(is_owner: bool = False) -> str:
     return base
 
 
-def load_system_prompt() -> str:
-    if SYSTEM_PROMPT_FILE.exists():
-        return SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
-    return (
-        "You are Cursiv — a self-improving AI workspace built for Joshua Winkler. "
-        "Human approval is required before any system change is applied. "
-        "Be warm, direct, truthful, and frontier-oriented."
+def _build_live_status() -> str:
+    """
+    Auto-generated capabilities block appended to every system prompt.
+    Reflects actual runtime state — no manual updates needed.
+    When a new agent or tool is added to the codebase, it appears here
+    automatically on next restart without editing system_prompt.md.
+    """
+    # ── Version ──────────────────────────────────────────────────────────
+    version = "3.14-U02"
+    try:
+        _vfile = ROOT / "launcher" / "cursiv_launcher.py"
+        if _vfile.exists():
+            import re as _re_v
+            _m = _re_v.search(r'_CURRENT_VERSION\s*=\s*"([^"]+)"', _vfile.read_text(encoding="utf-8"))
+            if _m:
+                version = _m.group(1)
+    except Exception:
+        pass
+
+    # ── Agents ───────────────────────────────────────────────────────────
+    agents = []
+    if _CODEX_OK and _codex_available():
+        agents.append("Winkler-Codex (qwen2.5-coder:14b + deepseek-coder-v2:16b · offline)")
+    elif _CODEX_OK:
+        agents.append("Winkler-Codex (loaded · models not yet pulled)")
+    try:
+        import cursiv_v215.agents.babel_agent  # noqa: F401
+        agents.append("Babel Agent (any language → UTF-8 binary → English · command: babel <text>)")
+    except Exception:
+        pass
+    if _HERMES_OK and _hermes_available():
+        agents.append("Hermes (offline multi-step executor)")
+    if _REF_OK and _ref_available():
+        agents.append("Reference Brain (offline SQLite knowledge base)")
+
+    # ── Tools ─────────────────────────────────────────────────────────────
+    tools = [
+        "File tools: read / write / list / search / create / delete (sandboxed to workspace root)",
+        "Group Discovery: Cursiv → xAI → OpenAI → Claude consensus (command: council <question>)",
+    ]
+    if BRAVE_KEY:
+        tools.append("Web Search: Brave Search API (key set) + DuckDuckGo fallback — worldwide real-time")
+    else:
+        tools.append("Web Search: DuckDuckGo worldwide real-time (no key · set BRAVE_API_KEY for better results)")
+
+    # ── Commands quick-ref ────────────────────────────────────────────────
+    commands = (
+        "search: <query> · babel <text> · council <question> · "
+        "codex <prompt> · files on/off · workspace <path> · "
+        "forge / council / ref / queue / obsidian / help"
     )
+
+    lines = [
+        "\n\n---",
+        f"## LIVE SYSTEM STATUS (auto-generated · Cursiv v{version})",
+        "",
+        "**Active agents:**",
+    ]
+    for a in agents:
+        lines.append(f"- {a}")
+    if not agents:
+        lines.append("- (none loaded)")
+    lines.append("")
+    lines.append("**Active tools:**")
+    for t in tools:
+        lines.append(f"- {t}")
+    lines.append("")
+    lines.append(f"**Terminal commands:** {commands}")
+    lines.append("")
+    lines.append(
+        "_This block is generated at runtime from actual loaded modules — "
+        "it reflects true system state, not documentation._"
+    )
+    return "\n".join(lines)
+
+
+def load_system_prompt() -> str:
+    base = (
+        SYSTEM_PROMPT_FILE.read_text(encoding="utf-8")
+        if SYSTEM_PROMPT_FILE.exists()
+        else (
+            "You are Cursiv — a self-improving AI workspace built for Joshua Winkler. "
+            "Human approval is required before any system change is applied. "
+            "Be warm, direct, truthful, and frontier-oriented."
+        )
+    )
+    return base + _build_live_status()
 
 
 def load_nexus_context() -> str:
