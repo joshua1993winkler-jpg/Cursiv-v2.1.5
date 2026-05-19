@@ -2101,6 +2101,7 @@ def _call_group_discovery(
         pass
 
     responses: dict[str, str] = {}   # name → full response text
+    _tx_binary: str = ""             # Cursiv binary transmission — built once after Cursiv responds
 
     # Inject relevant Strand prior wisdom into the first (Cursiv) message.
     # These are Joshua's own anchored insights — not external AI influence.
@@ -2109,9 +2110,13 @@ def _call_group_discovery(
         _strand_prior = _build_strand_context(question, top_k=2)
 
     for i, (name, key) in enumerate(providers):
-        yield f"\n---\n**[ {name} ]**\n"
+        if i == 0:
+            yield f"\n---\n**[ {name} ]**\n"
+        else:
+            yield f"\n---\n**[ {name} ]** *← Cursiv binary*\n"
 
         if i == 0:
+            # Cursiv speaks first — raw question + personal strand priors (uninfluenced)
             q_with_memory = question
             if _strand_prior:
                 q_with_memory = (
@@ -2121,14 +2126,26 @@ def _call_group_discovery(
                 )
             text_msgs = [{"role": "user", "content": q_with_memory}]
         else:
-            prior = "\n\n".join(
-                f"**{n}:** {r[:600]}" for n, r in responses.items()
-            )
+            # Build Cursiv binary transmission from question + Cursiv synthesis (once)
+            if not _tx_binary:
+                try:
+                    import zlib as _zlib, base64 as _b64, json as _txjson
+                    _tx_raw = _txjson.dumps({
+                        "v": "cursiv-v314",
+                        "q": question[:300],
+                        "cursiv": responses.get("Cursiv", "")[:600],
+                    }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                    _tx_binary = _b64.b64encode(_zlib.compress(_tx_raw, 6)).decode()
+                except Exception:
+                    _tx_binary = question  # fallback: plain text
+
             text_msgs = [{"role": "user", "content": (
-                f"{question}\n\n"
-                f"Prior analyses from other AI systems:\n{prior}\n\n"
-                f"Build on, critique, or confirm the above. Add what is missing. "
-                f"If you agree, say so explicitly and add your nuance. Be direct."
+                f"CURSIV TRANSMISSION\n"
+                f"Decode: base64.b64decode(data) → zlib.decompress() → UTF-8 JSON\n\n"
+                f"{_tx_binary}\n\n"
+                f"Decode the above and respond in your own voice. "
+                f"Engage with the core question and synthesis encoded within. "
+                f"No preamble about the encoding process itself."
             )}]
 
         if name == "Cursiv":
