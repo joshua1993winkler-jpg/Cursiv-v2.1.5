@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cursiv — AI Workspace</title>
+<meta name="description" content="The AI workspace that lives on your machine. No cloud. No keys. No one watching.">
+<meta property="og:title" content="Cursiv — AI Workspace">
+<meta property="og:description" content="14-agent council. Full offline. xAI → OpenAI → Claude → Ollama cascade routing. Your data never leaves.">
+<meta property="og:image" content="launcher/resources/icons/cursiv_256.png">
+<link rel="icon" type="image/png" href="launcher/resources/icons/cursiv_256.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════════
+   CURSIV — Release Page  v3.14-U01
+   Palette: #08090C bg · #C9A227 gold · #2255DD blue
+   ══════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:      #08090C;
+  --bg2:     #0D0F15;
+  --bg3:     #131620;
+  --border:  #1A1D2E;
+  --border2: #252840;
+  --gold:    #C9A227;
+  --gold2:   #FFD700;
+  --gold-glow: rgba(201,162,39,0.18);
+  --gold-dim:  rgba(201,162,39,0.25);
+  --silver:  #EDE8DC;
+  --silver2: #9A9480;
+  --blue:    #1E4D8C;
+  --blue2:   #2A66CC;
+  --blue3:   #5B9BFF;
+  --green:   #27C97A;
+  --red:     #FF4455;
+  --amber:   #FFAA22;
+  --serif:  'EB Garamond', Georgia, serif;
+  --ui:      'Segoe UI', system-ui, sans-serif;
+  --mono:    'Cascadia Code', 'Consolas', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--silver);
+  font-family: var(--ui);
+  overflow-x: hidden;
+  line-height: 1.65;
+}
+
+/* ── CANVAS ── */
+#starfield {
+  position: fixed; inset: 0;
+  z-index: 0; pointer-events: none;
+}
+.layer { position: relative; z-index: 1; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); }
+
+/* ══════════════════════════════════════════════════════════
+   NAV
+   ══════════════════════════════════════════════════════════ */
+nav {
+  position: fixed; top: 0; inset-inline: 0;
+  z-index: 200;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px;
+  height: 56px;
+  background: rgba(8,9,12,0.88);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  display: flex; align-items: center; gap: 9px;
+  text-decoration: none;
+  color: var(--gold);
+  font-size: 13px; font-weight: 700; letter-spacing: 3.5px;
+}
+.nav-logo .hex { font-size: 19px; filter: drop-shadow(0 0 5px var(--gold)); }
+
+nav ul { display: flex; gap: 32px; list-style: none; }
+nav ul a {
+  color: var(--silver2); text-decoration: none;
+  font-size: 12px; letter-spacing: .5px;
+  transition: color .2s;
+}
+nav ul a:hover { color: var(--gold); }
+
+.nav-ver {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 1px;
+  padding: 3px 11px;
+  background: var(--gold-glow);
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  border-radius: 2px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   HERO
+   ══════════════════════════════════════════════════════════ */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 120px 40px 80px;
+}
+
+.hero-hex {
+  font-size: 80px;
+  color: var(--gold);
+  filter: drop-shadow(0 0 28px rgba(201,162,39,.45));
+  margin-bottom: 24px;
+  animation: hex-breathe 5s ease-in-out infinite;
+}
+@keyframes hex-breathe {
+  0%,100% { filter: drop-shadow(0 0 20px rgba(201,162,39,.35)); }
+  50%      { filter: drop-shadow(0 0 44px rgba(201,162,39,.65)); }
+}
+
+.hero-eye {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 4px;
+  color: var(--gold); opacity: .7;
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(60px, 10vw, 110px);
+  font-weight: 400; line-height: 1;
+  letter-spacing: -1px;
+  background: linear-gradient(120deg, #ffffff 0%, var(--gold2) 45%, #ffffff 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; background-size: 200% auto;
+  animation: shimmer 7s linear infinite;
+  margin-bottom: 14px;
+}
+@keyframes shimmer {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+.hero-sub {
+  font-family: var(--serif);
+  font-size: clamp(17px, 2.5vw, 23px);
+  font-style: italic;
+  color: var(--silver2);
+  max-width: 580px;
+  margin: 0 auto 10px;
+}
+
+.hero-tags {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 1.5px;
+  color: var(--silver2); opacity: .45;
+  margin-bottom: 44px;
+}
+
+/* chips */
+.chip-row {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+.chip {
+  font-family: var(--mono); font-size: 10px;
+  padding: 4px 12px; border-radius: 2px; letter-spacing: .5px;
+}
+.chip-v   { background: var(--gold-glow); color: var(--gold);    border: 1px solid var(--gold-dim); }
+.chip-new { background: rgba(39,201,122,.08); color: var(--green); border: 1px solid rgba(39,201,122,.2); }
+.chip-os  { background: var(--border); color: var(--silver2);    border: 1px solid var(--border2); }
+
+/* download buttons */
+.dl-row {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  justify-content: center; margin-bottom: 20px;
+}
+
+.btn-dl {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 15px 34px;
+  background: var(--blue);
+  color: #fff; text-decoration: none;
+  font-size: 14px; font-weight: 600;
+  clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+  transition: background .2s, transform .15s;
+  overflow: hidden;
+}
+.btn-dl::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);
+  transform: translateX(-100%);
+  transition: transform .55s;
+}
+.btn-dl:hover { background: var(--blue2); transform: translateY(-2px); }
+.btn-dl:hover::after { transform: translateX(100%); }
+
+.btn-dl-icon { font-size: 20px; }
+.btn-dl-txt  { display: flex; flex-direction: column; gap: 1px; }
+.btn-dl-main { font-size: 14px; font-weight: 600; }
+.btn-dl-sub  { font-family: var(--mono); font-size: 10px; opacity: .55; }
+
+/* pulse ring */
+.dl-pulse { position: relative; display: inline-block; }
+.dl-pulse::before, .dl-pulse::after {
+  content: '';
+  position: absolute; inset: -6px;
+  border: 1px solid var(--blue3); opacity: 0;
+  animation: pulse 3.2s ease-out infinite;
+  clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+  pointer-events: none;
+}
+.dl-pulse::after { animation-delay: 1.6s; }
+@keyframes pulse {
+  0%   { opacity: .55; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.1); }
+}
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 15px 26px;
+  background: transparent; color: var(--silver2);
+  text-decoration: none; font-size: 13px;
+  border: 1px solid var(--border2);
+  clip-path: polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+  transition: border-color .2s, color .2s;
+}
+.btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+.hero-note {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--silver2); opacity: .45; letter-spacing: .3px;
+}
+
+/* ══════════════════════════════════════════════════════════
+   STATS BAR
+   ══════════════════════════════════════════════════════════ */
+.stats {
+  display: grid; grid-template-columns: repeat(4,1fr);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.stat {
+  padding: 40px 20px; text-align: center;
+  border-right: 1px solid var(--border);
+}
+.stat:last-child { border-right: none; }
+.stat-n {
+  font-family: var(--mono); font-size: 48px;
+  font-weight: 700; color: var(--gold);
+  display: block; line-height: 1; margin-bottom: 8px;
+  text-shadow: 0 0 24px var(--gold-glow);
+}
+.stat-l {
+  font-size: 11px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--silver2);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SECTION LAYOUT
+   ══════════════════════════════════════════════════════════ */
+.section {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 96px 40px;
+}
+.section-label {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 4px; color: var(--gold);
+  text-transform: uppercase; opacity: .75;
+  margin-bottom: 10px;
+}
+.section-title {
+  font-family: var(--serif);
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 400; line-height: 1.15;
+  color: var(--silver); margin-bottom: 48px;
+}
+
+/* ── GRID HELPERS ── */
+.grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+
+@media (max-width: 900px) {
+  .grid-3, .grid-4 { grid-template-columns: repeat(2,1fr); }
+}
+@media (max-width: 560px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2,1fr); }
+  nav ul { display: none; }
+}
+
+/* ── CARD BASE ── */
+.card {
+  background: var(--bg2); padding: 26px 28px;
+  transition: background .2s;
+}
+.card:hover { background: var(--bg3); }
+
+.card-tag {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 2px; color: var(--gold);
+  text-transform: uppercase; opacity: .65;
+  margin-bottom: 9px;
+}
+.card-title {
+  font-size: 15px; font-weight: 600;
+  color: var(--silver); margin-bottom: 9px;
+}
+.card-body {
+  font-size: 13px; color: var(--silver2); line-height: 1.75;
+}
+.card-body code {
+  font-family: var(--mono); font-size: 11px;
+  background: rgba(255,255,255,.04);
+  padding: 1px 5px; color: var(--gold);
+}
+
+/* ══════════════════════════════════════════════════════════
+   TERMINAL
+   ══════════════════════════════════════════════════════════ */
+.terminal {
+  background: #060709;
+  border: 1px solid var(--border2);
+  border-top: 2px solid var(--gold);
+  font-family: var(--mono);
+}
+.t-bar {
+  background: var(--bg3); padding: 10px 16px;
+  display: flex; align-items: center; gap: 7px;
+  border-bottom: 1px solid var(--border);
+}
+.t-dot { width: 10px; height: 10px; border-radius: 50%; }
+.t-dot.r { background: #FF5F57; }
+.t-dot.a { background: #FFBD2E; }
+.t-dot.g { background: #28C840; }
+.t-title { font-size: 10px; color: var(--silver2); margin-left: auto; letter-spacing: 1px; }
+.t-body  { padding: 18px 22px; font-size: 12.5px; line-height: 2; min-height: 180px; }
+.t-ln    { display: block; }
+.t-p     { color: var(--gold); }
+.t-ok    { color: var(--green); }
+.t-warn  { color: var(--amber); }
+.t-fail  { color: var(--red); }
+.t-dim   { color: var(--silver2); opacity: .45; }
+.t-cmd   { color: var(--silver); }
+.t-cur   {
+  display: inline-block; width: 7px; height: 13px;
+  background: var(--gold); vertical-align: middle;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ══════════════════════════════════════════════════════════
+   CASCADE DIAGRAM
+   ══════════════════════════════════════════════════════════ */
+.cascade {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--border); overflow: hidden;
+  margin: 48px 0;
+}
+.c-node {
+  flex: 1; padding: 28px 16px;
+  text-align: center; background: var(--bg2);
+  border-right: 1px solid var(--border);
+  transition: background .2s;
+}
+.c-node:last-child { border-right: none; }
+.c-node:hover { background: var(--bg3); }
+.c-node.gold  { border-top: 2px solid var(--gold); }
+.c-node.green { border-top: 2px solid var(--green); }
+.c-node.blue  { border-top: 2px solid var(--blue3); }
+
+.c-icon { font-size: 26px; display: block; margin-bottom: 10px; }
+.c-name { font-size: 13px; font-weight: 600; color: var(--silver); margin-bottom: 4px; }
+.c-sub  { font-family: var(--mono); font-size: 10px; color: var(--silver2); }
+.c-order {
+  font-family: var(--mono); font-size: 10px;
+  color: var(--gold); opacity: .6;
+  margin-bottom: 8px; letter-spacing: 1px;
+}
+
+.c-arrow {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 6px;
+  color: var(--border2);
+  font-size: 20px; font-family: var(--mono);
+  background: var(--bg2); flex-shrink: 0;
+  border-right: 1px solid var(--border);
+}
+
+/* ══════════════════════════════════════════════════════════
+   FEATURE CARDS (icon-led)
+   ══════════════════════════════════════════════════════════ */
+.feat-card {
+  background: var(--bg2); padding: 24px;
+  transition: background .2s;
+}
+.feat-card:hover { background: var(--bg3); }
+.feat-icon { font-size: 26px; margin-bottom: 12px; display: block; }
+.feat-name { font-size: 14px; font-weight: 600; color: var(--silver); margin-bottom: 6px; }
+.feat-desc { font-size: 12px; color: var(--silver2); line-height: 1.7; }
+.feat-desc code { font-family: var(--mono); font-size: 11px; color: var(--gold); background: rgba(255,255,255,.04); padding: 1px 4px; }
+
+/* ══════════════════════════════════════════════════════════
+   REQUIREMENTS TABLE
+   ══════════════════════════════════════════════════════════ */
+.req-table { width: 100%; border-collapse: collapse; }
+.req-table tr { border-bottom: 1px solid var(--border); }
+.req-table tr:hover td { background: var(--bg2); }
+.req-table td { padding: 14px 22px; }
+.req-table td:first-child {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--gold); letter-spacing: 1px; width: 150px;
+}
+.req-table td:last-child { font-size: 13px; color: var(--silver2); }
+
+/* ══════════════════════════════════════════════════════════
+   INSTALL STEPS
+   ══════════════════════════════════════════════════════════ */
+.steps { border: 1px solid var(--border); }
+.step {
+  display: flex; gap: 22px; align-items: flex-start;
+  padding: 22px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2); transition: background .2s;
+}
+.step:last-child { border-bottom: none; }
+.step:hover { background: var(--bg3); }
+.step-n {
+  font-family: var(--mono); font-size: 28px;
+  font-weight: 700; color: var(--border2);
+  line-height: 1; flex-shrink: 0; width: 40px;
+}
+.step-t { font-size: 14px; font-weight: 600; color: var(--silver); margin-bottom: 4px; }
+.step-b { font-size: 12px; color: var(--silver2); }
+.step-b code { font-family: var(--mono); font-size: 11px; color: var(--gold); background: rgba(255,255,255,.04); padding: 1px 5px; }
+
+/* ══════════════════════════════════════════════════════════
+   HONEST SECTION (inline callouts)
+   ══════════════════════════════════════════════════════════ */
+.honest-grid {
+  display: grid; grid-template-columns: repeat(2,1fr);
+  gap: 1px; background: var(--border); border: 1px solid var(--border);
+}
+@media (max-width: 640px) { .honest-grid { grid-template-columns: 1fr; } }
+
+.honest-card {
+  background: var(--bg2); padding: 28px;
+  transition: background .2s;
+}
+.honest-card:hover { background: var(--bg3); }
+
+/* ══════════════════════════════════════════════════════════
+   FOOTER
+   ══════════════════════════════════════════════════════════ */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 56px 40px 48px;
+  text-align: center;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 18px;
+}
+.footer-brand {
+  font-family: var(--serif); font-size: 36px;
+  color: var(--gold); letter-spacing: 2px;
+  filter: drop-shadow(0 0 16px rgba(201,162,39,.3));
+}
+.footer-tagline {
+  font-family: var(--serif); font-style: italic;
+  font-size: 16px; color: var(--silver2);
+}
+.footer-links { display: flex; gap: 28px; list-style: none; flex-wrap: wrap; justify-content: center; }
+.footer-links a {
+  font-size: 12px; color: var(--silver2);
+  text-decoration: none; transition: color .2s;
+}
+.footer-links a:hover { color: var(--gold); }
+.footer-copy { font-family: var(--mono); font-size: 10px; color: var(--silver2); opacity: .3; letter-spacing: .5px; }
+
+/* ══════════════════════════════════════════════════════════
+   SCROLL REVEAL
+   ══════════════════════════════════════════════════════════ */
+.reveal {
+  opacity: 0; transform: translateY(22px);
+  transition: opacity .65s ease, transform .65s ease;
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* stagger children of a reveal group */
+.reveal-group > * {
+  opacity: 0; transform: translateY(18px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.reveal-group.in > *:nth-child(1) { opacity:1; transform:none; transition-delay:.05s }
+.reveal-group.in > *:nth-child(2) { opacity:1; transform:none; transition-delay:.12s }
+.reveal-group.in > *:nth-child(3) { opacity:1; transform:none; transition-delay:.19s }
+.reveal-group.in > *:nth-child(4) { opacity:1; transform:none; transition-delay:.26s }
+.reveal-group.in > *:nth-child(5) { opacity:1; transform:none; transition-delay:.33s }
+.reveal-group.in > *:nth-child(6) { opacity:1; transform:none; transition-delay:.40s }
+.reveal-group.in > *:nth-child(7) { opacity:1; transform:none; transition-delay:.47s }
+.reveal-group.in > *:nth-child(8) { opacity:1; transform:none; transition-delay:.54s }
+.reveal-group.in > *:nth-child(n+9) { opacity:1; transform:none; transition-delay:.60s }
+</style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+
+<!-- ══ NAV ══════════════════════════════════════════════════════════ -->
+<nav class="layer">
+  <a href="#" class="nav-logo"><span class="hex">⬡</span>CURSIV</a>
+  <ul>
+    <li><a href="#new">What's New</a></li>
+    <li><a href="#features">Features</a></li>
+    <li><a href="#install">Install</a></li>
+    <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv" target="_blank">GitHub ↗</a></li>
+  </ul>
+  <span class="nav-ver">v3.14-U01</span>
+</nav>
+
+<!-- ══ HERO ══════════════════════════════════════════════════════════ -->
+<section class="hero layer">
+  <span class="hero-hex">⬡</span>
+  <p class="hero-eye">v3.14-U01 &nbsp;—&nbsp; Live Routing &amp; Account Recovery</p>
+  <h1>Cursiv</h1>
+  <p class="hero-sub">The AI workspace that lives on your machine.</p>
+  <p class="hero-tags">No cloud &nbsp;·&nbsp; No keys &nbsp;·&nbsp; No one watching</p>
+
+  <div class="chip-row">
+    <span class="chip chip-v">v3.14-U01</span>
+    <span class="chip chip-new">NEW — Cascade Routing</span>
+    <span class="chip chip-new">NEW — Update Checker</span>
+    <span class="chip chip-new">NEW — Password Recovery</span>
+    <span class="chip chip-os">Windows 10 / 11 · 64-bit</span>
+  </div>
+
+  <div class="dl-row">
+    <div class="dl-pulse">
+      <a href="https://github.com/joshua1993winkler-jpg/Cursiv/releases/latest" class="btn-dl">
+        <span class="btn-dl-icon">⬇</span>
+        <span class="btn-dl-txt">
+          <span class="btn-dl-main">Download Cursiv-Setup-3.14-U01.exe</span>
+          <span class="btn-dl-sub">71 MB &nbsp;·&nbsp; Windows Installer &nbsp;·&nbsp; No admin required</span>
+        </span>
+      </a>
+    </div>
+    <a href="https://github.com/joshua1993winkler-jpg/Cursiv" class="btn-ghost">◈ &nbsp;Source Code</a>
+    <a href="https://github.com/joshua1993winkler-jpg/Cursiv/blob/main/CHANGELOG.md" class="btn-ghost">≡ &nbsp;Changelog</a>
+  </div>
+
+  <p class="hero-note">Already on v3.14? &nbsp;Open Cursiv → Check for Updates → 71 MB in-place install. Ollama and your data are untouched.</p>
+</section>
+
+<!-- ══ STATS ══════════════════════════════════════════════════════════ -->
+<div class="stats layer reveal">
+  <div class="stat"><span class="stat-n">14</span><span class="stat-l">AI Agents</span></div>
+  <div class="stat"><span class="stat-n">4</span><span class="stat-l">Interfaces</span></div>
+  <div class="stat"><span class="stat-n">0</span><span class="stat-l">Cloud Dependency</span></div>
+  <div class="stat"><span class="stat-n">∞</span><span class="stat-l">Your Data. Your Machine.</span></div>
+</div>
+
+<!-- ══ WHAT'S NEW ══════════════════════════════════════════════════════ -->
+<section class="section layer" id="new">
+  <p class="section-label reveal">Update</p>
+  <h2 class="section-title reveal">What's New in v3.14-U01</h2>
+
+  <div class="grid-3 reveal-group">
+    <div class="card">
+      <p class="card-tag">Routing</p>
+      <h3 class="card-title">True Cascade Routing</h3>
+      <p class="card-body">
+        xAI Grok-3 → OpenAI GPT-4.1 → Claude → Ollama tried in strict order. Each provider falls through on failure with a visible inline banner so you always know which path ran.<br><br>
+        Force a model for one message: <code>hey grok</code>, <code>hey claude</code>, <code>hey chat</code>, <code>hey ollama</code>. Provider dropdown in the Gradio web app.
+      </p>
+    </div>
+    <div class="card">
+      <p class="card-tag">Status</p>
+      <h3 class="card-title">Live Status Chips</h3>
+      <p class="card-body">
+        Every API chip in the terminal now probes the actual endpoint on startup and after key entry.<br><br>
+        <span style="color:var(--green)">GREEN ✓</span> endpoint reachable &nbsp;·&nbsp;
+        <span style="color:var(--red)">RED ✗</span> key missing or down &nbsp;·&nbsp;
+        <span style="color:var(--amber)">GOLD ?</span> not yet tested<br><br>
+        File access, Obsidian, and Guardian chips reflect real state, not just whether a setting is toggled.
+      </p>
+    </div>
+    <div class="card">
+      <p class="card-tag">Security</p>
+      <h3 class="card-title">Password Recovery</h3>
+      <p class="card-body">
+        "Forgot Password?" on the login screen. Set 3 of 20 questions at account creation. Answers are normalised, then bcrypt-hashed — never stored in plain text.<br><br>
+        Reset requires 2-of-3 answers. "Security Questions" in the launcher and tray menu — existing accounts can add recovery without recreating their login.
+      </p>
+    </div>
+    <div class="card">
+      <p class="card-tag">Updates</p>
+      <h3 class="card-title">Update Checker</h3>
+      <p class="card-body">
+        "Check for Updates" in the launcher window and tray. Queries the GitHub releases API in a background thread — no data sent, read-only fetch.<br><br>
+        If newer: shows release notes and a Download &amp; Install button. 71 MB installer runs in-place. Ollama, your model, and your conversation data are completely untouched. Never auto-updates.
+      </p>
+    </div>
+    <div class="card">
+      <p class="card-tag">Web App</p>
+      <h3 class="card-title">Offline-Safe Startup</h3>
+      <p class="card-body">
+        Removed the Google Fonts network call from the Gradio theme — was causing crashes on offline startup. <code>analytics_enabled=False</code> kills Gradio telemetry entirely.<br><br>
+        API keys auto-fill from <code>secrets.bat</code> environment variables on load. Provider dropdown in the UI mirrors the terminal cascade.
+      </p>
+    </div>
+    <div class="card">
+      <p class="card-tag">Repo</p>
+      <h3 class="card-title">Renamed to Cursiv</h3>
+      <p class="card-body">
+        Repository renamed from <code>Cursiv-v3</code> to <code>Cursiv</code>. All internal URLs, API endpoints, and the git remote updated. No redirects.<br><br>
+        GitHub redirects old URLs automatically. Existing clones continue to work, though updating the remote is recommended.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CASCADE DIAGRAM ══════════════════════════════════════════════ -->
+<section class="section layer" style="padding-top:0">
+  <p class="section-label reveal">Architecture</p>
+  <h2 class="section-title reveal">Provider Cascade</h2>
+
+  <div class="cascade reveal">
+    <div class="c-node gold">
+      <p class="c-order">01 — PRIMARY</p>
+      <span class="c-icon">⚡</span>
+      <p class="c-name">xAI Grok-3</p>
+      <p class="c-sub">fastest · frontier</p>
+    </div>
+    <div class="c-arrow">→</div>
+    <div class="c-node blue">
+      <p class="c-order">02 — FALLBACK</p>
+      <span class="c-icon">🤖</span>
+      <p class="c-name">OpenAI GPT-4.1</p>
+      <p class="c-sub">cloud · code gen</p>
+    </div>
+    <div class="c-arrow">→</div>
+    <div class="c-node" style="border-top:2px solid var(--silver2)">
+      <p class="c-order" style="color:var(--silver2)">03 — FALLBACK</p>
+      <span class="c-icon">◈</span>
+      <p class="c-name">Claude</p>
+      <p class="c-sub">cloud · reasoning</p>
+    </div>
+    <div class="c-arrow">→</div>
+    <div class="c-node green">
+      <p class="c-order" style="color:var(--green)">04 — ALWAYS ON</p>
+      <span class="c-icon">🔒</span>
+      <p class="c-name">Ollama / llama3.1</p>
+      <p class="c-sub">local · offline · private</p>
+    </div>
+  </div>
+
+  <!-- Terminal demo -->
+  <div class="terminal reveal">
+    <div class="t-bar">
+      <span class="t-dot r"></span><span class="t-dot a"></span><span class="t-dot g"></span>
+      <span class="t-title">Cursiv Terminal — live demo</span>
+    </div>
+    <div class="t-body" id="tbody">
+      <span class="t-ln"><span class="t-p">Cursiv ✦ &nbsp;</span><span id="tcmd"></span><span class="t-cur" id="tcur"></span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FEATURES ══════════════════════════════════════════════════════ -->
+<section class="section layer" id="features">
+  <p class="section-label reveal">Capabilities</p>
+  <h2 class="section-title reveal">What You Get</h2>
+
+  <div class="grid-4 reveal-group">
+    <div class="feat-card">
+      <span class="feat-icon">🧠</span>
+      <h3 class="feat-name">14-Agent Council</h3>
+      <p class="feat-desc">10 advisors deliberate in parallel via ThreadPoolExecutor. 4 synthesizers surface the response. Council memory — Jaccard similarity + 7-day exponential decay.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🔌</span>
+      <h3 class="feat-name">Full Offline Operation</h3>
+      <p class="feat-desc">Ollama + llama3.1. Zero cloud dependency after initial download. Works airgapped. Conversation data never leaves your machine.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🔀</span>
+      <h3 class="feat-name">Cascade Routing</h3>
+      <p class="feat-desc">xAI → OpenAI → Claude → Ollama. Falls through on failure. Inline banners show the path. Force any model: <code>hey grok</code>, <code>hey claude</code>, <code>hey ollama</code>.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🛡️</span>
+      <h3 class="feat-name">System Guardian</h3>
+      <p class="feat-desc">Four-layer active defense. Pi-squared compounding probe scores. Decoy agents — Meridian, Veil, Cipher — feed misleading data to anyone testing the boundaries.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🔒</span>
+      <h3 class="feat-name">Local Auth</h3>
+      <p class="feat-desc">bcrypt rounds=12. HMAC constant-time comparison. Security-question recovery — 2-of-3 required, bcrypt-hashed before storage. Nothing sent anywhere.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">⚡</span>
+      <h3 class="feat-name">Streaming Responses</h3>
+      <p class="feat-desc">NDJSON streaming from Ollama. Tokens appear as they generate across all providers. Rate limiter with TPM window tracking and scan display.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🤖</span>
+      <h3 class="feat-name">Codex Agent</h3>
+      <p class="feat-desc">Offline coding specialist integrated from Winkler_Codex_AI. Explicit invocation only: <code>codex &lt;prompt&gt;</code>. Designed to get you 70% there.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🔄</span>
+      <h3 class="feat-name">Update Checker</h3>
+      <p class="feat-desc">Launcher + tray menu. GitHub releases API — background thread, no data sent. Shows release notes. In-place install. Ollama untouched. Never auto-updates.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">📊</span>
+      <h3 class="feat-name">Live Status Chips</h3>
+      <p class="feat-desc">Probes actual API endpoints. GREEN/RED/GOLD per connection. File access, Obsidian, and Guardian reflect real state. Updates after every key change.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🧬</span>
+      <h3 class="feat-name">Council Memory</h3>
+      <p class="feat-desc">Jaccard similarity across past deliberations. Exponential decay (7-day half-life). System surfaces relevant prior wisdom and builds on it.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🌿</span>
+      <h3 class="feat-name">Obsidian Sync</h3>
+      <p class="feat-desc">Every session streamed to your Obsidian vault in real time. Dataview-compatible YAML frontmatter. Auto-detects vault path. Toggle per session.</p>
+    </div>
+    <div class="feat-card">
+      <span class="feat-icon">🪟</span>
+      <h3 class="feat-name">4 Interfaces</h3>
+      <p class="feat-desc">System Tray (Win32 IPC). Chat UI port 7860. Nexus Panel port 7861. Terminal Chat — full-screen CLI with file tools, Guardian scan, and cascade routing.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ REQUIREMENTS + INSTALL ═════════════════════════════════════════ -->
+<section class="section layer" id="install">
+  <p class="section-label reveal">Requirements</p>
+  <h2 class="section-title reveal">System Requirements</h2>
+
+  <table class="req-table reveal">
+    <tr><td>OS</td><td>Windows 10 or 11 (64-bit)</td></tr>
+    <tr><td>RAM</td><td>8 GB minimum &nbsp;·&nbsp; 16 GB recommended</td></tr>
+    <tr><td>DISK</td><td>~6 GB free (application + model)</td></tr>
+    <tr><td>GPU</td><td>Optional — significantly improves inference speed on local model</td></tr>
+    <tr><td>INTERNET</td><td>Required for initial download only. Fully offline after that.</td></tr>
+    <tr><td>API KEYS</td><td>Optional — system runs completely offline without them</td></tr>
+  </table>
+
+  <br><br>
+
+  <p class="section-label reveal">Installation</p>
+  <h2 class="section-title reveal" style="margin-bottom:20px">Install in Two Minutes</h2>
+
+  <div class="steps reveal">
+    <div class="step">
+      <span class="step-n">01</span>
+      <div>
+        <p class="step-t">Download the installer</p>
+        <p class="step-b">Grab <code>Cursiv-Setup-3.14-U01.exe</code> from the button above. Windows may show a SmartScreen warning — click More info → Run anyway. Standard false positive for unsigned PyInstaller binaries. Full source is open.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">02</span>
+      <div>
+        <p class="step-t">Double-click and click through</p>
+        <p class="step-b">The installer completes in about 60 seconds. No admin rights required. Installs per-user by default.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">03</span>
+      <div>
+        <p class="step-t">Let the AI engine download</p>
+        <p class="step-b">A second window opens automatically and pulls Ollama (~90 MB) and llama3.1 (~4.7 GB). Minimise it — Cursiv is already usable while it runs. ~6 minutes on a fast connection.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">04</span>
+      <div>
+        <p class="step-t">Create your account</p>
+        <p class="step-b">First launch prompts for a username and password — bcrypt-hashed locally, never sent anywhere. You'll set 3 security questions for recovery.</p>
+      </div>
+    </div>
+    <div class="step">
+      <span class="step-n">05</span>
+      <div>
+        <p class="step-t">You're in</p>
+        <p class="step-b">Four interfaces open: System Tray, Chat UI at <code>localhost:7860</code>, Nexus Panel at <code>localhost:7861</code>, and Terminal Chat. Type anything.</p>
+      </div>
+    </div>
+  </div>
+
+  <br><br>
+
+  <p class="section-label reveal">Updating from v3.14</p>
+  <div class="terminal reveal" style="max-width:640px">
+    <div class="t-bar">
+      <span class="t-dot r"></span><span class="t-dot a"></span><span class="t-dot g"></span>
+      <span class="t-title">In-place update — no reinstall needed</span>
+    </div>
+    <div class="t-body" style="min-height:auto">
+      <span class="t-ln"><span class="t-dim"># If you have git and run from source:</span></span>
+      <span class="t-ln"><span class="t-p">$ </span><span class="t-ok">git pull origin main</span></span>
+      <span class="t-ln"><span class="t-dim"># Changes are live on next launch. Zero download.</span></span>
+      <span class="t-ln">&nbsp;</span>
+      <span class="t-ln"><span class="t-dim"># If you installed via the .exe:</span></span>
+      <span class="t-ln"><span class="t-p">Cursiv launcher </span><span class="t-cmd">→ Check for Updates → Download &amp; Install</span></span>
+      <span class="t-ln"><span class="t-dim"># 71 MB. Runs over the existing install.</span></span>
+      <span class="t-ln"><span class="t-dim"># Ollama, llama3.1, .cursiv/ data — all untouched.</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ HONEST SECTION ══════════════════════════════════════════════ -->
+<section class="section layer">
+  <p class="section-label reveal">Transparency</p>
+  <h2 class="section-title reveal">Be Honest With Yourself About What This Is</h2>
+
+  <div class="honest-grid reveal-group">
+    <div class="honest-card">
+      <p class="card-tag">Speed</p>
+      <h3 class="card-title">This is physics</h3>
+      <p class="card-body">Ollama runs on your CPU and GPU. Fast hardware = fast answers. On a modern gaming PC it's quick. On older hardware it's slower. That is not a limitation of the software.</p>
+    </div>
+    <div class="honest-card">
+      <p class="card-tag">Accuracy</p>
+      <h3 class="card-title">Verify what matters</h3>
+      <p class="card-body">The model is not infallible. It will occasionally be wrong, confidently. Treat every answer as a starting point. Never use this to replace your own judgment. Ever.</p>
+    </div>
+    <div class="honest-card">
+      <p class="card-tag">Coding</p>
+      <h3 class="card-title">70% is the goal</h3>
+      <p class="card-body">Designed to get you most of the way and force you to understand the rest. Feed the errors to a larger cloud model if you need to finish it. That's the point — not dependency, but understanding.</p>
+    </div>
+    <div class="honest-card">
+      <p class="card-tag">Privacy</p>
+      <h3 class="card-title">Nothing leaves</h3>
+      <p class="card-body">Nothing you type is sent anywhere unless you add API keys, which you control. No telemetry. No usage logging. The update checker reads GitHub's public releases API — nothing about you is transmitted.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ FOOTER ══════════════════════════════════════════════════════ -->
+<footer class="layer">
+  <span class="footer-brand">⬡ Cursiv</span>
+  <p class="footer-tagline">The world's knowledge should not live in one place.</p>
+  <ul class="footer-links">
+    <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv">Source Code</a></li>
+    <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv/releases">All Releases</a></li>
+    <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv/blob/main/CHANGELOG.md">Changelog</a></li>
+    <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv/blob/main/TECH.md">TECH.md</a></li>
+    <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv/blob/main/LICENSE">MIT License</a></li>
+  </ul>
+  <p class="footer-copy">Built by Joshua Winkler &nbsp;·&nbsp; v3.14-U01 &nbsp;·&nbsp; MIT License</p>
+</footer>
+
+<!-- ══════════════════════════════════════════════════════════
+     SCRIPTS
+     ══════════════════════════════════════════════════════════ -->
+<script>
+/* ── Starfield ─────────────────────────────────────────────────── */
+(function(){
+  const c = document.getElementById('starfield');
+  const x = c.getContext('2d');
+  let S = [];
+
+  function resize(){
+    c.width  = window.innerWidth;
+    c.height = window.innerHeight;
+  }
+
+  function seed(){
+    S = [];
+    for(let i=0;i<320;i++){
+      S.push({
+        x:  Math.random()*c.width,
+        y:  Math.random()*c.height,
+        r:  Math.random()*1.3+0.15,
+        a:  Math.random(),
+        da: (Math.random()-.5)*0.005,
+        vy: Math.random()*0.045+0.008,
+        gold: Math.random() > 0.72,
+      });
+    }
+  }
+
+  function draw(){
+    x.clearRect(0,0,c.width,c.height);
+    for(const s of S){
+      s.a += s.da;
+      if(s.a>1||s.a<0) s.da*=-1;
+      s.y += s.vy;
+      if(s.y > c.height){ s.y=0; s.x=Math.random()*c.width; }
+      x.globalAlpha = Math.max(0,Math.min(1, s.a*0.55));
+      x.fillStyle = s.gold ? '#C9A227' : '#5B9BFF';
+      x.beginPath();
+      x.arc(s.x,s.y,s.r,0,Math.PI*2);
+      x.fill();
+    }
+    x.globalAlpha=1;
+    requestAnimationFrame(draw);
+  }
+
+  resize(); seed(); draw();
+  window.addEventListener('resize',()=>{ resize(); seed(); });
+})();
+
+/* ── Scroll reveal ─────────────────────────────────────────────── */
+const ro = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
+},{ threshold: 0.08 });
+document.querySelectorAll('.reveal,.reveal-group').forEach(el=>ro.observe(el));
+
+/* ── Terminal animation ────────────────────────────────────────── */
+(function(){
+  const tbody = document.getElementById('tbody');
+  const tcmd  = document.getElementById('tcmd');
+  const tcur  = document.getElementById('tcur');
+
+  const SEQ = [
+    { t:'type',  s:'status' },
+    { t:'pause', ms:500 },
+    { t:'enter' },
+    { t:'out', lines:[
+      { c:'t-dim',  v:''},
+      { c:'t-ok',   v:'  xAI:✓  OpenAI:✓  Claude:✓  Ollama:✓' },
+      { c:'t-ok',   v:'  files:ON  Obs:ON  Guard:✓  mode:AUTO' },
+      { c:'t-dim',  v:'  14 agents · 0 probes · session #47' },
+      { c:'t-dim',  v:''},
+    ]},
+    { t:'pause', ms:1800 },
+    { t:'clrout' }, { t:'clrcmd' }, { t:'pause', ms:400 },
+
+    { t:'type',  s:'explain the observer effect in quantum physics' },
+    { t:'pause', ms:500 },
+    { t:'enter' },
+    { t:'out', lines:[
+      { c:'t-dim',  v:'  probing xAI Grok-3...'},
+      { c:'t-ok',   v:'  ✓ connected — streaming response'},
+      { c:'t-dim',  v:''},
+      { c:'t-cmd',  v:'  The observer effect describes how the act of measuring'},
+      { c:'t-cmd',  v:'  a quantum system disturbs the system itself. Unlike'},
+      { c:'t-cmd',  v:'  classical physics, the act of observation is not passive...'},
+    ]},
+    { t:'pause', ms:2200 },
+    { t:'clrout' }, { t:'clrcmd' }, { t:'pause', ms:400 },
+
+    { t:'type',  s:'hey ollama write a python context manager' },
+    { t:'pause', ms:500 },
+    { t:'enter' },
+    { t:'out', lines:[
+      { c:'t-warn', v:'  → forced provider: Ollama (fully offline)'},
+      { c:'t-dim',  v:''},
+      { c:'t-cmd',  v:'  from contextlib import contextmanager'},
+      { c:'t-cmd',  v:''},
+      { c:'t-cmd',  v:'  @contextmanager'},
+      { c:'t-cmd',  v:'  def managed_resource(name):'},
+      { c:'t-cmd',  v:'      print(f"acquiring {name}")'},
+      { c:'t-cmd',  v:'      try:'},
+      { c:'t-cmd',  v:'          yield name'},
+      { c:'t-cmd',  v:'      finally:'},
+      { c:'t-cmd',  v:'          print(f"releasing {name}")'},
+    ]},
+    { t:'pause', ms:2400 },
+    { t:'clrout' }, { t:'clrcmd' }, { t:'pause', ms:400 },
+
+    { t:'type',  s:'key xai-XXXXXXXXXXXXXXXXXXXXXXXXXXXX' },
+    { t:'pause', ms:400 },
+    { t:'enter' },
+    { t:'out', lines:[
+      { c:'t-dim',  v:'  probing api.x.ai/v1/models...'},
+      { c:'t-ok',   v:'  ✓ xAI endpoint live — chip updated GREEN'},
+      { c:'t-dim',  v:''},
+      { c:'t-ok',   v:'  [xAI:✓] [OpenAI:?] [Claude:?] [Ollama:✓]'},
+    ]},
+    { t:'pause', ms:2000 },
+    { t:'clrout' }, { t:'clrcmd' }, { t:'pause', ms:400 },
+  ];
+
+  let outLines=[], si=0;
+
+  function render(){
+    tbody.querySelectorAll('.tout').forEach(e=>e.remove());
+    outLines.forEach(ln=>{
+      const s=document.createElement('span');
+      s.className=`t-ln tout ${ln.c}`;
+      s.textContent=ln.v;
+      tbody.appendChild(s);
+    });
+  }
+
+  function next(){
+    if(si>=SEQ.length) si=0;
+    const step=SEQ[si++];
+    if(step.t==='type'){
+      let i=0; tcur.style.display='inline-block';
+      const iv=setInterval(()=>{
+        tcmd.textContent+=step.s[i++];
+        if(i>=step.s.length){ clearInterval(iv); next(); }
+      },48);
+    } else if(step.t==='pause'){
+      setTimeout(next,step.ms);
+    } else if(step.t==='enter'){
+      tcur.style.display='none'; next();
+    } else if(step.t==='out'){
+      let i=0;
+      const iv=setInterval(()=>{
+        outLines.push(step.lines[i++]);
+        render();
+        if(i>=step.lines.length){ clearInterval(iv); next(); }
+      },75);
+    } else if(step.t==='clrout'){
+      outLines=[]; render(); next();
+    } else if(step.t==='clrcmd'){
+      tcur.style.display='inline-block';
+      const iv=setInterval(()=>{
+        const t=tcmd.textContent;
+        tcmd.textContent=t.slice(0,-1);
+        if(!tcmd.textContent){ clearInterval(iv); next(); }
+      },16);
+    }
+  }
+
+  setTimeout(next,1400);
+})();
+</script>
+</body>
+</html>
