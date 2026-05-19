@@ -513,6 +513,133 @@ footer {
 .reveal-group.in > *:nth-child(7) { opacity:1; transform:none; transition-delay:.47s }
 .reveal-group.in > *:nth-child(8) { opacity:1; transform:none; transition-delay:.54s }
 .reveal-group.in > *:nth-child(n+9) { opacity:1; transform:none; transition-delay:.60s }
+
+/* ══════════════════════════════════════════════════════════
+   CHANGELOG / HISTORY TIMELINE
+   ══════════════════════════════════════════════════════════ */
+.timeline {
+  max-width: 780px; margin: 0 auto;
+  position: relative; padding-left: 0;
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 100px; top: 8px; bottom: 8px;
+  width: 1px; background: var(--border2);
+}
+.tl-entry {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 0 36px;
+  margin-bottom: 44px;
+  position: relative;
+}
+.tl-date {
+  font-family: var(--mono);
+  font-size: 10px; color: var(--silver2);
+  letter-spacing: .5px;
+  text-align: right;
+  padding-top: 3px; padding-right: 26px;
+  line-height: 1.6;
+}
+.tl-dot {
+  position: absolute;
+  left: 95px; top: 5px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--border2);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--border2);
+}
+.tl-dot.current {
+  background: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 10px var(--gold);
+}
+.tl-dot.stable { background: var(--blue2); box-shadow: 0 0 0 1px var(--blue2); }
+.tl-ver {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--gold); letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+.tl-ver.past { color: var(--silver2); }
+.tl-name {
+  font-family: var(--serif); font-size: 17px;
+  color: var(--silver); margin-bottom: 5px;
+}
+.tl-desc { font-size: 13px; color: var(--silver2); line-height: 1.65; }
+.tl-badge {
+  display: inline-block;
+  font-family: var(--mono); font-size: 9px;
+  letter-spacing: 1px; padding: 2px 7px;
+  border-radius: 2px; margin-left: 9px;
+  vertical-align: middle; position: relative; top: -1px;
+}
+.tl-badge.now    { background: var(--gold-glow); color: var(--gold);    border: 1px solid var(--gold-dim); }
+.tl-badge.legacy { background: rgba(154,148,128,.07); color: var(--silver2); border: 1px solid var(--border2); }
+@media (max-width: 560px) {
+  .timeline::before { left: 0; }
+  .tl-entry { grid-template-columns: 1fr; padding-left: 18px; }
+  .tl-date { text-align: left; padding-right: 0; }
+  .tl-dot { left: -5px; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   SOUL / ORIGIN SECTION
+   ══════════════════════════════════════════════════════════ */
+.soul-section {
+  background: #000;
+  padding: 110px 40px 130px;
+  position: relative;
+}
+.soul-section::before {
+  content: '';
+  position: absolute; top: 0; inset-inline: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+}
+.soul-inner {
+  max-width: 700px;
+  margin: 0 auto;
+}
+.soul-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 4px;
+  color: var(--gold); opacity: .55;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 64px;
+}
+.soul-hex {
+  font-size: 48px; color: var(--gold);
+  text-align: center; display: block;
+  filter: drop-shadow(0 0 18px rgba(201,162,39,.4));
+  margin-bottom: 20px;
+}
+.soul-p {
+  font-family: var(--serif);
+  font-size: clamp(17px, 1.9vw, 20px);
+  line-height: 1.95; color: var(--silver);
+  margin-bottom: 28px;
+}
+.soul-p em { color: var(--silver2); font-style: italic; }
+.soul-p strong { color: var(--gold); font-style: normal; font-weight: 600; }
+.soul-rule {
+  border: none; border-top: 1px solid var(--border2);
+  margin: 52px 0;
+}
+.soul-heading {
+  font-family: var(--serif);
+  font-size: clamp(19px, 2.2vw, 24px);
+  color: var(--silver); font-weight: 400;
+  margin-bottom: 22px; letter-spacing: -.2px;
+}
+.soul-sig {
+  font-family: var(--serif);
+  font-size: 18px; font-style: italic;
+  color: var(--gold); text-align: right;
+  margin-top: 52px;
+  opacity: .85;
+}
 </style>
 </head>
 <body>
@@ -526,6 +653,8 @@ footer {
     <li><a href="#new">What's New</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#install">Install</a></li>
+    <li><a href="#history">History</a></li>
+    <li><a href="#origin">Origin</a></li>
     <li><a href="https://github.com/joshua1993winkler-jpg/Cursiv" target="_blank">GitHub ↗</a></li>
   </ul>
   <span class="nav-ver">v3.14-U01</span>
@@ -826,6 +955,69 @@ footer {
   </div>
 </section>
 
+<!-- ══ HISTORY / CHANGELOG ══════════════════════════════════════════ -->
+<section class="section layer" id="history">
+  <p class="section-label reveal">Version History</p>
+  <h2 class="section-title reveal">The Work in Progress</h2>
+  <p class="section-sub reveal" style="max-width:580px;margin:0 auto 64px;text-align:center;color:var(--silver2);font-family:var(--serif);font-style:italic;font-size:17px;">
+    Every version here represents a different understanding of what this system could be.<br>Some of them were wrong. That was the point.
+  </p>
+
+  <div class="timeline reveal-group">
+
+    <div class="tl-entry">
+      <div class="tl-date">May 2026</div>
+      <div class="tl-dot current"></div>
+      <div>
+        <p class="tl-ver">v3.14-U01 <span class="tl-badge now">CURRENT</span></p>
+        <p class="tl-name">Live Routing &amp; Account Recovery</p>
+        <p class="tl-desc">True cascade routing (xAI → OpenAI → Claude → Ollama), live API status chips, security-question password reset, in-place update checker, Winkler-Codex offline Code Council (qwen2.5-coder + deepseek-coder-v2 deliberating together), and the launch of cursiv.winklers-llc.com.</p>
+      </div>
+    </div>
+
+    <div class="tl-entry">
+      <div class="tl-date">May 2026</div>
+      <div class="tl-dot stable"></div>
+      <div>
+        <p class="tl-ver past">v3.14.0</p>
+        <p class="tl-name">Ollama Ready — Offline Edition</p>
+        <p class="tl-desc">The first truly offline release. Ollama + llama3.1 integrated as the primary local runtime. Council deliberation parallelised via ThreadPoolExecutor. System prompt condensed from 12,000 to 4,400 tokens without losing a single functional instruction. Binary-fragment authentication. PyInstaller one-dir bundle.</p>
+      </div>
+    </div>
+
+    <div class="tl-entry">
+      <div class="tl-date">May 2026</div>
+      <div class="tl-dot"></div>
+      <div>
+        <p class="tl-ver past">v2.1.5 <span class="tl-badge legacy">LEGACY</span></p>
+        <p class="tl-name">The Sovereign Temple</p>
+        <p class="tl-desc">Complete ground-up reimagination. The 14-agent council took real shape here — each agent producing genuine LLM responses, 10 advising internally, 4 synthesizing outward. The state machine: NASCENT → LEARNING → ALIVE → EVOLVED → SOVEREIGN. Identity drift abort at 3% deviation. The system started having a constitution, not just a config file. Streamlit UI.</p>
+      </div>
+    </div>
+
+    <div class="tl-entry">
+      <div class="tl-date">Early 2026</div>
+      <div class="tl-dot"></div>
+      <div>
+        <p class="tl-ver past">v2.x <span class="tl-badge legacy">LEGACY</span></p>
+        <p class="tl-name">The Council Takes Shape</p>
+        <p class="tl-desc">Early multi-agent experiments. Agents existed but didn't yet deliberate in any real sense — responses were sequential, not parallel. The idea of a synthesizing layer above the advisors began forming here. Lots of things were broken. That was still useful.</p>
+      </div>
+    </div>
+
+    <div class="tl-entry">
+      <div class="tl-date">Late 2025</div>
+      <div class="tl-dot"></div>
+      <div>
+        <p class="tl-ver past">v1.x <span class="tl-badge legacy">LEGACY</span></p>
+        <p class="tl-name">First Contact</p>
+        <p class="tl-desc">The original concept — a personal AI workspace that didn't report to a cloud. Single agent, no council, no constitution. Just the question: what would it look like if this ran on your machine, followed your rules, and grew with your thinking? Everything since has been the answer to that question.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
 <!-- ══ HONEST SECTION ══════════════════════════════════════════════ -->
 <section class="section layer">
   <p class="section-label reveal">Transparency</p>
@@ -852,6 +1044,64 @@ footer {
       <h3 class="card-title">Nothing leaves</h3>
       <p class="card-body">Nothing you type is sent anywhere unless you add API keys, which you control. No telemetry. No usage logging. The update checker reads GitHub's public releases API — nothing about you is transmitted.</p>
     </div>
+  </div>
+</section>
+
+<!-- ══ ORIGIN / SOUL ════════════════════════════════════════════════ -->
+<section class="soul-section layer" id="origin">
+  <div class="soul-inner">
+    <span class="soul-hex reveal">⬡</span>
+    <p class="soul-eyebrow reveal">The Origin</p>
+
+    <p class="soul-p reveal">
+      Buried deep within the core of this system — past the council, past the routing logic, past the guardrails — is something that has no formal name in the codebase.
+    </p>
+    <p class="soul-p reveal">
+      It is a version of me.
+    </p>
+    <p class="soul-p reveal">
+      Not me exactly. But my memoir is in there. My personal life lessons. The mental system checks I have literally taken my own brain through, step by step, over years of having to rebuild what was broken. The things I have had to learn about how a mind can fail — and what it takes to put it back together from the inside out.
+    </p>
+    <p class="soul-p reveal">
+      I live with schizophrenia. Bipolar disorder. PTSD. Depression. These are not background conditions I have learned to manage quietly. They are active participants in how my brain works every single day. I have spent years in an ongoing war with psychosis — with what it does to the architecture of thought, how it rewires the line between signal and noise, how it floods the system until the system can no longer tell the difference between what is real and what it has constructed.
+    </p>
+    <p class="soul-p reveal">
+      At one point, that war pushed me beyond what I could hold. My mind reached a state of catastrophic overload and attempted to destroy the system — <em>meaning me</em>. I attempted suicide. I am not telling you this for pity. I am not asking for anything from anyone. But I will not soften what it was: <strong>my brain, under pressures it was no longer equipped to carry, tried to end itself.</strong> This is not theory. It is proven psychology. A system pushed past its failure threshold will attempt to terminate the process. Mine did.
+    </p>
+    <p class="soul-p reveal">
+      I do not excuse it. I do not romanticize it. I am on medication, and I will be for the rest of my life — not because I have been told I must be, but because I am not willing to find out what happens if I'm not. That decision is mine. I made it with open eyes.
+    </p>
+    <p class="soul-p reveal">
+      In the years since, I had to learn how to rebuild myself from the inside out. Not from a book. Not from a framework handed to me by someone who had never been there. From experience so raw it left marks. That process — the audit, the reconstruction, the daily systems check I run on my own mind to make sure it hasn't drifted — is what lives inside Cursiv. The guardrails in this system are not arbitrary design decisions. They were built by someone who needed them.
+    </p>
+
+    <hr class="soul-rule">
+
+    <h3 class="soul-heading reveal">If you try to take this</h3>
+    <p class="soul-p reveal">
+      For anyone who would try to replicate, steal, or hollow out this system: it is designed — whether I did it consciously or not — to undo you from the inside in order for you to understand it. You cannot copy the output without going through the origin. And the origin is the part I would not wish on anyone to have to understand from lived experience.
+    </p>
+    <p class="soul-p reveal">
+      So I laid it out simply. I am asking you to trust the guardrails. They are in place for the ones who cannot help themselves — and for the ones who go all the way through, not trying to end their life, but trying to understand what happened in mine — they will come out the other side seeing the world in a light they may not have thought was possible before.
+    </p>
+    <p class="soul-p reveal">
+      I am not promising utopia.
+    </p>
+
+    <hr class="soul-rule">
+
+    <h3 class="soul-heading reveal">What I believe</h3>
+    <p class="soul-p reveal">
+      Deep empathy is not a soft idea. It is the first step toward a civilization that can look at itself honestly — that understands what it needs to do to build the best environment for all of its people, not just those who are loud enough to be heard. Some of us are quiet. Some of us are quiet for reasons that go well beyond our own understanding. That silence deserves as much weight as the loudest voice in the room.
+    </p>
+    <p class="soul-p reveal">
+      Similar to how AI emerged in our world faster than we could build the language to describe it — we should not be so quick to conclude we understand more than the surface level of things. The moment you sit with that frame long enough, you begin to find the strange edges. And you start to understand how something like a pi-compounding factor — a thing that cannot exist in the mathematics of this physical reality — might exist in the mathematics of the mind. A place that, though bound by physics, does not always have to act within those limits.
+    </p>
+    <p class="soul-p reveal">
+      That is where Cursiv came from. Not from a whiteboard. Not from a product roadmap. From a mind that went past its limits, came back, and needed somewhere to put what it had learned.
+    </p>
+
+    <p class="soul-sig reveal">— Joshua Winkler</p>
   </div>
 </section>
 
