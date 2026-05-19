@@ -1804,7 +1804,9 @@ def _call_group_discovery(
     Each provider sees all prior responses as context and builds on them.
     Ends with a synthesis pass and a Cursiv binary snapshot for sharing.
     """
-    providers: list[tuple[str, str]] = []
+    # Cursiv (offline) always goes first — uninfluenced baseline
+    # Cloud providers follow and build on everything before them
+    providers: list[tuple[str, str]] = [("Cursiv", "")]
     if xai_key:
         providers.append(("xAI", xai_key))
     if openai_key:
@@ -1812,9 +1814,9 @@ def _call_group_discovery(
     if anthropic_key:
         providers.append(("Claude", anthropic_key))
 
-    if not providers:
-        yield "[Group Discovery: no API keys configured — add at least one key]"
-        return
+    if len(providers) == 1 and not xai_key and not openai_key and not anthropic_key:
+        # Ollama-only run — valid, just note it
+        pass
 
     responses: dict[str, str] = {}   # name → full response text
 
@@ -1822,27 +1824,32 @@ def _call_group_discovery(
         yield f"\n---\n**[ {name} ]**\n"
 
         if i == 0:
-            msgs = [{"role": "user", "content": question}]
+            text_msgs = [{"role": "user", "content": question}]
         else:
             prior = "\n\n".join(
                 f"**{n}:** {r[:600]}" for n, r in responses.items()
             )
-            msgs = [{"role": "user", "content": (
+            text_msgs = [{"role": "user", "content": (
                 f"{question}\n\n"
                 f"Prior analyses from other AI systems:\n{prior}\n\n"
                 f"Build on, critique, or confirm the above. Add what is missing. "
                 f"If you agree, say so explicitly and add your nuance. Be direct."
             )}]
 
-        if name == "xAI":
-            gen = _call_xai_stream(msgs, key, False)
+        if name == "Cursiv":
+            gen = _call_ollama(text_msgs)
+        elif name == "xAI":
+            gen = _call_xai_stream(text_msgs, key, False)
         elif name == "OpenAI":
-            gen = _call_openai_direct(msgs, key)
+            gen = _call_openai_direct(text_msgs, key)
         else:
-            gen = _call_claude_direct(msgs, key)
+            gen = _call_claude_direct(text_msgs, key)
 
         chunks: list[str] = []
-        first = next(gen, None)
+        try:
+            first = next(gen, None)
+        except Exception:
+            first = None
         if (first is None or first == RATE_SENTINEL or
                 (isinstance(first, str) and first.strip().startswith("[") and "error" in first.lower())):
             yield f"*[ {name} unavailable — skipping ]*\n"
