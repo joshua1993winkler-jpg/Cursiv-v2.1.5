@@ -640,6 +640,53 @@ footer {
   margin-top: 52px;
   opacity: .85;
 }
+.book-card {
+  display: flex; gap: 32px; align-items: flex-start;
+  margin-top: 56px;
+  padding: 32px;
+  border: 1px solid var(--border2);
+  background: rgba(255,255,255,.02);
+}
+.book-card:hover { border-color: var(--gold-dim); }
+.book-cover {
+  width: 120px; flex-shrink: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  display: block;
+}
+.book-cover img { width: 100%; display: block; }
+.book-info { flex: 1; }
+.book-label {
+  font-family: var(--mono); font-size: 10px;
+  letter-spacing: 3px; color: var(--gold); opacity: .6;
+  text-transform: uppercase; margin-bottom: 10px;
+}
+.book-title {
+  font-family: var(--serif); font-size: 22px;
+  color: var(--silver); margin-bottom: 8px; line-height: 1.3;
+}
+.book-author {
+  font-family: var(--serif); font-style: italic;
+  font-size: 14px; color: var(--silver2); margin-bottom: 16px;
+}
+.book-desc {
+  font-size: 13px; color: var(--silver2);
+  line-height: 1.65; margin-bottom: 20px;
+}
+.book-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 20px;
+  background: transparent;
+  border: 1px solid var(--gold-dim);
+  color: var(--gold);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1px;
+  text-decoration: none;
+  transition: background .2s, border-color .2s;
+}
+.book-btn:hover { background: var(--gold-glow); border-color: var(--gold); }
+@media (max-width: 560px) {
+  .book-card { flex-direction: column; }
+  .book-cover { width: 100px; }
+}
 </style>
 </head>
 <body>
@@ -1102,6 +1149,28 @@ footer {
     </p>
 
     <p class="soul-sig reveal">— Joshua Winkler</p>
+
+    <a href="https://www.amazon.com/Dont-Do-Joshua-Winkler/dp/B0DHL4CM25/" target="_blank" rel="noopener" class="book-card reveal" style="text-decoration:none;">
+      <div class="book-cover">
+        <img
+          src="https://images-na.ssl-images-amazon.com/images/P/B0DHL4CM25.01._SCLZZZZZZZ_.jpg"
+          alt="Don't Do It — Joshua Winkler book cover"
+          onerror="this.style.display='none'"
+        >
+      </div>
+      <div class="book-info">
+        <p class="book-label">The Book</p>
+        <p class="book-title">Don't Do It</p>
+        <p class="book-author">Joshua Winkler</p>
+        <p class="book-desc">
+          Some of what lives in the core of this system came from here first.
+          The memoir. The mental frameworks. The things that had to be written down
+          before they could be built into anything else.
+        </p>
+        <span class="book-btn">View on Amazon ↗</span>
+      </div>
+    </a>
+
   </div>
 </section>
 
