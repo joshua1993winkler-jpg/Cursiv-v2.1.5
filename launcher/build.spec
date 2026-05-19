@@ -44,6 +44,7 @@ hiddenimports = [
     "cursiv_v215.core.strand",
     "cursiv_v215.guardian",
     "cursiv_v215.guardian.access_gate",
+    "cursiv_v215.guardian.security_questions",
     "cursiv_v215.guardian.decoys",
     "cursiv_v215.guardian.obfuscation",
     "cursiv_v215.guardian.temple_guardian",
