@@ -1820,16 +1820,15 @@ def main() -> None:
 
         else:
             # ── Normal single-model flow ─────────────────────────────────
-            if _force_provider:
-                _route_label = _force_provider.upper()
-            elif cfg.get("api_key"):
-                _route_label = "xAI"
-            elif cfg.get("openai_key"):
-                _route_label = "OpenAI"
-            elif cfg.get("anthropic_key"):
-                _route_label = "Claude"
+            # Bare queries always hit Ollama first — local synthesis before
+            # any external API call. Use  hey grok / hey claude / council
+            # to explicitly bring in external providers.
+            _ollama_first = not _force_provider
+            if not _force_provider:
+                _force_provider = "ollama"
+                _route_label    = "CURSIV"
             else:
-                _route_label = "Ollama"
+                _route_label = _force_provider.upper()
 
             if _cli_scan:
                 _cli_scan.routing(_route_label)
@@ -1869,6 +1868,11 @@ def main() -> None:
                 full_response = full_response or "(interrupted)"
 
             print()   # newline after streamed response
+
+            if _ollama_first and full_response and len(full_response.strip()) > 40:
+                has_ext = cfg.get("api_key") or cfg.get("openai_key") or cfg.get("anthropic_key")
+                if has_ext:
+                    print(f"  {DIM}·  hey grok / hey claude / council to bring in external views{RESET}")
             print()
 
             # ── Update live status from response ─────────────────────────
@@ -1908,12 +1912,13 @@ def main() -> None:
 
         # ── Session log + Obsidian livestream ────────────────────────────
         if raw and full_response:
+            _log_model = _force_provider or "ollama"
             try:
-                _session_append_cli(raw, full_response, "grok")
+                _session_append_cli(raw, full_response, _log_model)
             except Exception:
                 pass
             try:
-                _obs_livestream_cli(raw, full_response, "grok")
+                _obs_livestream_cli(raw, full_response, _log_model)
             except Exception:
                 pass
 
