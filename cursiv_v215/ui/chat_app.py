@@ -2386,5 +2386,4 @@ if __name__ == "__main__":
         theme=theme,
         css=CHAT_CSS,
         js=HOTKEY_JS,
-        show_api=False,
     )
