@@ -1823,18 +1823,48 @@ You are in full autonomous coding mode. Follow this protocol exactly:
         return
 
     # ── Smart routing — cascade: xAI → OpenAI → Claude → Ollama ────────
-    # File-access paths use the best available tool-loop provider.
-    if file_access and key:
-        yield from _call_xai_with_tools(messages, key, _workspace(), oai, has_images,
-                                         confirm_writes=confirm_writes, anthropic_key=ant)
-    elif file_access and oai:
-        yield from _call_openai_with_tools(messages, oai, _workspace(),
-                                            anthropic_key=ant,
-                                            confirm_writes=confirm_writes)
-    elif file_access and ant:
-        yield from _call_claude_with_tools(messages, ant, _workspace(),
-                                            confirm_writes=confirm_writes,
-                                            is_owner=_owner_active())
+    def _fa_error(chunk: str, provider: str) -> bool:
+        s = chunk.strip()
+        return s.startswith(f"[{provider} error") or s.startswith(f"\n[{provider} error")
+
+    def _text_only_msgs(msgs):
+        return [
+            {"role": m["role"],
+             "content": m["content"] if isinstance(m["content"], str)
+                        else next((p["text"] for p in m["content"] if p["type"] == "text"), "")}
+            for m in msgs
+        ]
+
+    if file_access:
+        _fa_done = False
+
+        if key and not _fa_done:
+            gen   = _call_xai_with_tools(messages, key, _workspace(), oai, has_images,
+                                          confirm_writes=confirm_writes, anthropic_key=ant)
+            first = next(gen, None)
+            if first is not None and not _fa_error(first, "xAI"):
+                yield first
+                yield from gen
+                _fa_done = True
+
+        if oai and not _fa_done:
+            gen   = _call_openai_with_tools(messages, oai, _workspace(),
+                                             anthropic_key=ant, confirm_writes=confirm_writes)
+            first = next(gen, None)
+            if first is not None and not _fa_error(first, "OpenAI"):
+                yield first
+                yield from gen
+                _fa_done = True
+
+        if ant and not _fa_done:
+            yield from _call_claude_with_tools(messages, ant, _workspace(),
+                                                confirm_writes=confirm_writes,
+                                                is_owner=_owner_active())
+            _fa_done = True
+
+        if not _fa_done:
+            yield "[All cloud providers unavailable — file tools require a working API key. Add a key or try without file access.]\n"
+
     else:
         # ── Cascade for plain chat: xAI → OpenAI → Claude → Ollama ──────
         tried: list[str] = []
@@ -2356,6 +2386,5 @@ if __name__ == "__main__":
         theme=theme,
         css=CHAT_CSS,
         js=HOTKEY_JS,
-        analytics_enabled=False,
         show_api=False,
     )
