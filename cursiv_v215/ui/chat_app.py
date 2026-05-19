@@ -1938,8 +1938,17 @@ You are in full autonomous coding mode. Follow this protocol exactly:
 
     # ── Smart routing — cascade: xAI → OpenAI → Claude → Ollama ────────
     def _fa_error(chunk: str, provider: str) -> bool:
+        if chunk == RATE_SENTINEL:
+            return True
         s = chunk.strip()
         return s.startswith(f"[{provider} error") or s.startswith(f"\n[{provider} error")
+
+    def _safe_first(gen):
+        """Get first chunk; return RATE_SENTINEL on any connection exception."""
+        try:
+            return next(gen, None)
+        except Exception:
+            return RATE_SENTINEL
 
     def _text_only_msgs(msgs):
         return [
@@ -1955,7 +1964,7 @@ You are in full autonomous coding mode. Follow this protocol exactly:
         if key and not _fa_done:
             gen   = _call_xai_with_tools(messages, key, _workspace(), oai, has_images,
                                           confirm_writes=confirm_writes, anthropic_key=ant)
-            first = next(gen, None)
+            first = _safe_first(gen)
             if first is not None and not _fa_error(first, "xAI"):
                 yield first
                 yield from gen
@@ -1964,7 +1973,7 @@ You are in full autonomous coding mode. Follow this protocol exactly:
         if oai and not _fa_done:
             gen   = _call_openai_with_tools(messages, oai, _workspace(),
                                              anthropic_key=ant, confirm_writes=confirm_writes)
-            first = next(gen, None)
+            first = _safe_first(gen)
             if first is not None and not _fa_error(first, "OpenAI"):
                 yield first
                 yield from gen
@@ -1976,8 +1985,11 @@ You are in full autonomous coding mode. Follow this protocol exactly:
                                                 is_owner=_owner_active())
             _fa_done = True
 
+        # Offline fallback — all cloud providers exhausted or unreachable
+        # Ollama is local with no token rate limits — unlimited in offline mode
         if not _fa_done:
-            yield "[All cloud providers unavailable — file tools require a working API key. Add a key or try without file access.]\n"
+            yield "*[All cloud providers unavailable — routing to Ollama offline mode (no token limits)]*\n\n"
+            yield from _call_ollama(_text_only_msgs(messages))
 
     else:
         # ── Cascade for plain chat: xAI → OpenAI → Claude → Ollama ──────
