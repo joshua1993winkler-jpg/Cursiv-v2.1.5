@@ -213,6 +213,121 @@ def _cursiv_decode(binary: str) -> str:
     except Exception:
         return '[decode error]'
 
+# ── Real-time web search (worldwide, zero API key required) ───────────────
+import urllib.parse as _urlparse
+import re as _re
+
+BRAVE_KEY = os.environ.get("BRAVE_API_KEY", "")
+
+_SEARCH_TRIGGERS = (
+    "latest ", "current ", "today ", "right now", "this week", "this month",
+    "who won", "what happened", "news ", "price of ", "weather ",
+    "search:", "search for", "look up", "find me ", "real-time", "realtime",
+    "live ", "breaking ", "recent ", "just announced", "just released",
+    "new version of", "stock price", "crypto price", "cryptocurrency",
+)
+
+def _needs_search(text: str) -> bool:
+    lower = text.lower()
+    if lower.startswith("search:") or lower.startswith("search "):
+        return True
+    return any(t in lower for t in _SEARCH_TRIGGERS)
+
+def _ddg_search(query: str, max_results: int = 4) -> str:
+    """DuckDuckGo: Instant Answer API with Lite HTML fallback."""
+    # ── Instant Answer API (fast, structured, worldwide) ──
+    try:
+        url = (
+            f"https://api.duckduckgo.com/?q={_urlparse.quote(query)}"
+            f"&format=json&no_html=1&skip_disambig=1&t=Cursiv"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "Cursiv/3.14 (search)"})
+        with urllib.request.urlopen(req, timeout=6) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        parts = []
+        if data.get("Answer"):
+            parts.append(f"Direct answer: {data['Answer']}")
+        if data.get("AbstractText"):
+            parts.append(f"{data['AbstractText']}\nSource: {data.get('AbstractURL', '')}")
+        for t in data.get("RelatedTopics", [])[:3]:
+            if isinstance(t, dict) and t.get("Text"):
+                parts.append(t["Text"])
+        if parts:
+            return "\n\n".join(parts)
+    except Exception:
+        pass
+
+    # ── Lite HTML fallback (catches news / current events) ──
+    try:
+        url = f"https://lite.duckduckgo.com/lite/?q={_urlparse.quote(query)}"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        with urllib.request.urlopen(req, timeout=7) as r:
+            html = r.read().decode("utf-8", errors="replace")
+        text  = _re.sub(r"<[^>]+>", " ", html)
+        text  = _re.sub(r"\s+", " ", text)
+        snips = _re.findall(r"[A-Z][^.!?]{30,250}[.!?]", text)
+        seen, results = set(), []
+        for s in snips:
+            s = s.strip()
+            if s not in seen and len(s) > 40:
+                seen.add(s)
+                results.append(s)
+            if len(results) >= max_results:
+                break
+        if results:
+            return "\n\n".join(results)
+    except Exception:
+        pass
+
+    return ""
+
+def _brave_search(query: str, max_results: int = 4) -> str:
+    """Brave Search API — best quality, requires BRAVE_API_KEY env var."""
+    try:
+        url = (
+            f"https://api.search.brave.com/res/v1/web/search"
+            f"?q={_urlparse.quote(query)}&count={max_results}"
+        )
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/json",
+            "X-Subscription-Token": BRAVE_KEY,
+        })
+        with urllib.request.urlopen(req, timeout=6) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        results = data.get("web", {}).get("results", [])
+        lines = []
+        for item in results[:max_results]:
+            title = item.get("title", "")
+            desc  = item.get("description", "")
+            src   = item.get("url", "")
+            if desc:
+                lines.append(f"{title}\n{desc}\nSource: {src}")
+        return "\n\n".join(lines) if lines else ""
+    except Exception:
+        return _ddg_search(query, max_results)
+
+def _web_search(query: str, max_results: int = 4) -> str:
+    """
+    Worldwide real-time web search.
+    Uses Brave Search API if BRAVE_API_KEY is set (2000 free queries/month).
+    Falls back to DuckDuckGo (zero config, zero cost, worldwide).
+    Returns formatted snippets or empty string on failure/offline.
+    """
+    q = query.strip()
+    if not q:
+        return ""
+    for prefix in ("search:", "search "):
+        if q.lower().startswith(prefix):
+            q = q[len(prefix):].strip()
+            break
+    if BRAVE_KEY:
+        result = _brave_search(q, max_results)
+        if result:
+            return result
+    return _ddg_search(q, max_results)
+
 # ── File tool definitions (xAI / OpenAI tool-call schema) ─────────────────
 FILE_TOOLS = [
     {
@@ -2032,6 +2147,26 @@ You are in full autonomous coding mode. Follow this protocol exactly:
         user_content = user_text
 
     messages.append({"role": "user", "content": user_content})
+
+    # ── Real-time web search injection ──────────────────────────────────
+    # Fires when the query looks like it needs current facts, or when the
+    # user explicitly types "search: <query>".  Results are injected into
+    # the system prompt so every provider gets the same live context.
+    # Skipped entirely when offline — _is_online() is already called below.
+    _search_q = user_text
+    for _pfx in ("search:", "search "):
+        if _search_q.lower().startswith(_pfx):
+            _search_q = _search_q[len(_pfx):].strip()
+            break
+    _web_ctx = ""
+    if _needs_search(user_text) and _is_online():
+        _web_ctx = _web_search(_search_q[:300])
+    if _web_ctx:
+        messages[0]["content"] += (
+            "\n\n## Live Web Search Results\n"
+            "*(Retrieved in real-time for this query — treat these as current facts)*\n\n"
+            + _web_ctx + "\n"
+        )
 
     # Codex Agent is invoked explicitly via the `codex <prompt>` command only.
     # Auto-intercept is disabled — Ollama handles coding Q&A directly with the

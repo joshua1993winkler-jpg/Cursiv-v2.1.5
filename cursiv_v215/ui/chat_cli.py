@@ -47,7 +47,23 @@ from cursiv_v215.ui.chat_app import (
     execute_tool,
     _call_group_discovery,
     _cursiv_encode,
+    _web_search,
+    _needs_search,
+    _call_ollama,
 )
+
+try:
+    from cursiv_v215.agents.babel_agent import (
+        encode_to_binary   as _babel_encode,
+        decode_from_binary as _babel_decode,
+        format_binary_block as _babel_fmt,
+        BABEL_SYSTEM       as _BABEL_SYSTEM,
+        is_babel_command   as _babel_detect,
+        extract_babel_input as _babel_input,
+    )
+    _BABEL_OK = True
+except Exception:
+    _BABEL_OK = False
 
 try:
     from cursiv_v215.forge.funforge_meta import (
@@ -620,6 +636,23 @@ _HELP = f"""\
                             works offline, no API key needed
                             also fires automatically for any code-classified message
 
+  {GOLD}── Web Search (real-time, worldwide) ────────────────────────────{RESET}
+  {LGOLD}search: <query>{RESET}           search the web right now + AI synthesis
+  {LGOLD}search <query>{RESET}            same — no colon required
+                            auto-fires on phrases like "latest", "today",
+                            "who won", "price of", "breaking" etc.
+                            Uses Brave Search API if BRAVE_API_KEY is set,
+                            DuckDuckGo otherwise (free, no key needed)
+
+  {GOLD}── Babel Agent (any language → binary → English) ────────────────{RESET}
+  {LGOLD}babel <text>{RESET}              encode any language to UTF-8 binary,
+                            then decode + translate to English via the LLM
+  {LGOLD}babel: <text>{RESET}             same with colon
+                            Works for every language without pre-programming:
+                            Chinese, Arabic, Japanese, Russian, Hindi, etc.
+                            Example:  babel Bonjour le monde
+                            Example:  babel こんにちは世界
+
   {GOLD}── Group Discovery (multi-provider consensus) ───────────────────{RESET}
   {LGOLD}council <question>{RESET}        xAI → OpenAI → Claude in sequence, each seeing
                             prior responses; ends with synthesis + Cursiv binary
@@ -982,6 +1015,78 @@ def main() -> None:
                     print(f"  {LGOLD}Queued:{RESET}  {DIM}{entry.get('id','?')} — {task[:60]}{RESET}")
                 else:
                     print(f"  {LGOLD}Usage:{RESET}  {DIM}queue list  |  queue add <task>{RESET}")
+            continue
+
+        # ── Web search ────────────────────────────────────────────────────
+        elif cmd.startswith("search:") or cmd.startswith("search "):
+            query = raw[7:].strip() if cmd.startswith("search:") else raw[7:].strip()
+            if not query:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}search: <query>  or  search <query>{RESET}")
+            else:
+                print(f"\n  {GOLD}⊕ Web Search —{RESET} {DIM}{query}{RESET}\n")
+                results = _web_search(query)
+                if results:
+                    for line in results.splitlines():
+                        print(f"  {line}")
+                    print()
+                    # Now ask the AI to synthesise the results
+                    synth_msg = f"search: {query}"
+                    _history = list(cfg.get("history", []))
+                    full = ""
+                    for chunk in chat(
+                        synth_msg, _history,
+                        cfg["api_key"], None,
+                        file_access=cfg["file_access"],
+                        root_path=cfg["root"],
+                        openai_key=cfg.get("openai_key",""),
+                        confirm_writes=cfg["confirm_writes"],
+                        anthropic_key=cfg.get("anthropic_key",""),
+                    ):
+                        print(chunk, end="", flush=True)
+                        full += chunk
+                    print()
+                    if full.strip():
+                        cfg.setdefault("history", [])
+                        cfg["history"].append({"role": "user", "content": synth_msg})
+                        cfg["history"].append({"role": "assistant", "content": full})
+                else:
+                    print(f"  {RED}No web results found.{RESET}  "
+                          f"{DIM}Check internet connection or try a different query.{RESET}")
+            continue
+
+        # ── Babel Agent (universal language → binary → English) ───────────
+        elif cmd.startswith("babel") and (cmd == "babel" or cmd[5] in (" ", ":")):
+            if not _BABEL_OK:
+                print(f"  {RED}Babel Agent failed to load.{RESET}")
+                continue
+            raw_input = _babel_input(raw)
+            if not raw_input:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}babel <text in any language>{RESET}")
+                print(f"  {DIM}Example:  babel Bonjour le monde{RESET}")
+                print(f"  {DIM}Example:  babel こんにちは世界{RESET}")
+                print(f"  {DIM}Example:  babel مرحبا بالعالم{RESET}")
+                continue
+
+            print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}Encoding → Binary → English{RESET}\n")
+            binary = _babel_encode(raw_input)
+            print(f"  {DIM}Binary payload ({len(raw_input)} chars → UTF-8 binary):{RESET}")
+            for line in _babel_fmt(binary).splitlines():
+                print(f"  {LGOLD}{line}{RESET}")
+            print()
+
+            # Send binary to Ollama with the Babel system prompt directly.
+            # Bypasses the main chat() routing so the Babel persona stays clean.
+            _babel_msgs = [
+                {"role": "system", "content": _BABEL_SYSTEM},
+                {"role": "user",   "content": binary},
+            ]
+            print(f"  {GOLD}Translation:{RESET}")
+            full = ""
+            for chunk in _call_ollama(_babel_msgs, max_tokens=600):
+                print(chunk, end="", flush=True)
+                full += chunk
+            print("\n")
+            # Babel runs as a one-shot tool — not added to main conversation history
             continue
 
         elif cmd.startswith("key "):
