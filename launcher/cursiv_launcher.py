@@ -592,6 +592,28 @@ class CursivLauncher(QMainWindow):
         util_row.addWidget(self._upd_btn)
 
         col.addLayout(util_row)
+
+        _codex_style = f"""
+            QPushButton {{
+                background: transparent; color: {GOLD};
+                font-size: 11px; font-weight: 600;
+                border: 1px solid {LGOLD}; border-radius: 4px;
+                padding: 2px 6px;
+            }}
+            QPushButton:hover   {{ background: rgba(212,175,55,0.08); border-color: {GOLD}; }}
+            QPushButton:pressed {{ background: rgba(212,175,55,0.15); }}
+            QPushButton:disabled {{ color: {SILV2}; border-color: {BORDER}; }}
+        """
+        self._codex_dl_btn = QPushButton("Winkler-Codex Download")
+        self._codex_dl_btn.setFixedHeight(28)
+        self._codex_dl_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._codex_dl_btn.setToolTip(
+            "Download the offline Code Council models (qwen2.5-coder:14b + deepseek-coder-v2:16b)"
+        )
+        self._codex_dl_btn.setStyleSheet(_codex_style)
+        self._codex_dl_btn.clicked.connect(self._download_codex_models)
+        col.addWidget(self._codex_dl_btn)
+
         return col
 
     def _build_footer(self) -> QWidget:
@@ -733,6 +755,74 @@ class CursivLauncher(QMainWindow):
         dlg = UpdateDialog(tag, result["body"], result["exe_url"], self)
         dlg.exec()
 
+    # ── Winkler-Codex model download ─────────────────────────────────────
+
+    def _download_codex_models(self):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Winkler-Codex Download")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(
+            "<b>Download Winkler-Codex offline models?</b>"
+        )
+        msg.setInformativeText(
+            "This will download two specialist coding models to your machine:\n\n"
+            "  • qwen2.5-coder:14b  — primary coder  (~8.7 GB)\n"
+            "  • deepseek-coder-v2:16b — code review  (~9.1 GB)\n\n"
+            "Total download: ~18 GB\n"
+            "Requires Ollama to be running and ~20 GB of free disk space.\n\n"
+            "Once installed, Cursiv automatically routes coding questions through "
+            "both models — they review each other's work before you see the answer.\n\n"
+            "This runs in a terminal window. You can minimise it and continue using Cursiv."
+        )
+        msg.setStandardButtons(
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        )
+        msg.button(QMessageBox.StandardButton.Ok).setText("Download (~18 GB)")
+        msg.button(QMessageBox.StandardButton.Cancel).setText("Not Now")
+        msg.setStyleSheet(QSS)
+
+        if msg.exec() != QMessageBox.StandardButton.Ok:
+            return
+
+        self._codex_dl_btn.setEnabled(False)
+        self._codex_dl_btn.setText("Downloading…")
+        self._set_status("Launching Winkler-Codex download — see terminal window…")
+
+        script = (
+            "Write-Host '' ;"
+            "Write-Host '  Winkler-Codex — Offline Code Council' -ForegroundColor DarkYellow ;"
+            "Write-Host '' ;"
+            "foreach ($m in @('qwen2.5-coder:14b','deepseek-coder-v2:16b')) {"
+            "  Write-Host \"  Pulling $m...\" -ForegroundColor Cyan ;"
+            "  ollama pull $m ;"
+            "  if ($LASTEXITCODE -eq 0) { Write-Host \"  [OK] $m ready.\" -ForegroundColor Green }"
+            "  else { Write-Host \"  [!] $m pull failed — run: ollama pull $m\" -ForegroundColor Yellow }"
+            "} ;"
+            "Write-Host '' ;"
+            "Write-Host '  Winkler-Codex models installed. Cursiv will use them automatically.' -ForegroundColor Green ;"
+            "Write-Host '' ;"
+            "Write-Host '  Press Enter to close...' -NoNewline ;"
+            "Read-Host"
+        )
+        try:
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-Command", script],
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+                cwd=str(_ROOT),
+            )
+        except Exception as exc:
+            self._set_status(f"Could not launch download: {exc}")
+            self._codex_dl_btn.setEnabled(True)
+            self._codex_dl_btn.setText("Winkler-Codex Download")
+            return
+
+        # Re-enable after a short delay so user can re-run if needed
+        QTimer.singleShot(8000, lambda: (
+            self._codex_dl_btn.setEnabled(True),
+            self._codex_dl_btn.setText("Winkler-Codex Download"),
+        ))
+
     # ── Tray ──────────────────────────────────────────────────────────────
 
     def _build_tray(self):
@@ -768,6 +858,10 @@ class CursivLauncher(QMainWindow):
         upd_act = QAction("Check for Updates", self)
         upd_act.triggered.connect(self._check_updates)
         menu.addAction(upd_act)
+
+        codex_act = QAction("Winkler-Codex Download", self)
+        codex_act.triggered.connect(self._download_codex_models)
+        menu.addAction(codex_act)
 
         menu.addSeparator()
         quit_act = QAction("Quit", self)
