@@ -11,11 +11,52 @@ Files:
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, date
 from pathlib import Path
 
 ROOT         = Path(__file__).parent.parent.parent
-SESSIONS_DIR = ROOT / ".cursiv" / "sessions"
+CURSIV_DIR   = ROOT / ".cursiv"
+SESSIONS_DIR = CURSIV_DIR / "sessions"
+MEMORY_FILE  = CURSIV_DIR / "memory.json"
+RATED_JSONL  = CURSIV_DIR / "rated_exchanges.jsonl"
+
+
+def _append_memory_run(user_msg: str, ai_msg: str, model: str, quality: float = 0.70) -> None:
+    """Write this exchange to memory.json["runs"] so the training watcher picks it up."""
+    CURSIV_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        mem = json.loads(MEMORY_FILE.read_text(encoding="utf-8")) if MEMORY_FILE.exists() else {}
+    except Exception:
+        mem = {}
+    runs = mem.get("runs", [])
+    runs.append({
+        "agent_id":         model,
+        "timestamp":        time.time(),
+        "quality":          round(quality, 3),
+        "query":            user_msg.strip()[:500],
+        "response_preview": ai_msg.strip()[:500],
+    })
+    if len(runs) > 500:
+        runs = runs[-500:]
+    mem["runs"] = runs
+    try:
+        MEMORY_FILE.write_text(
+            json.dumps(mem, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def get_last_exchange() -> dict | None:
+    """Return the most recently logged exchange, or None if no history exists."""
+    files = sorted(SESSIONS_DIR.glob("*.jsonl"), reverse=True) if SESSIONS_DIR.exists() else []
+    for f in files:
+        entries = _load_file(f)
+        if entries:
+            return entries[-1]
+    return None
 
 
 def _today_file() -> Path:
@@ -38,6 +79,7 @@ def append_exchange(user_msg: str, ai_msg: str, model: str = "unknown") -> None:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
         pass
+    _append_memory_run(user_msg, ai_msg, model)
 
 
 def _load_file(path: Path) -> list[dict]:

@@ -30,6 +30,7 @@ import shutil
 import sys
 import textwrap
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 # Force UTF-8 stdout — prevents surrogate/emoji crashes on Windows terminals
@@ -115,14 +116,18 @@ except Exception:
 # ── Session Memory ─────────────────────────────────────────────────────────
 try:
     from cursiv_v215.memory.session_log import (
-        append_exchange  as _session_append_cli,
-        get_boot_summary as _session_boot_summary,
+        append_exchange   as _session_append_cli,
+        get_boot_summary  as _session_boot_summary,
+        get_last_exchange as _session_get_last,
+        RATED_JSONL       as _RATED_JSONL,
     )
     _SESSION_CLI_OK = True
 except Exception:
     _SESSION_CLI_OK = False
     def _session_append_cli(u, a, m="unknown"): pass
     def _session_boot_summary():                return {}
+    def _session_get_last():                    return None
+    _RATED_JSONL = Path(ROOT) / ".cursiv" / "rated_exchanges.jsonl"
 
 # ── Codex Agent — offline-capable coding specialist ──────────────────────
 try:
@@ -673,6 +678,13 @@ _HELP = f"""\
                             Grok generates → Claude verifies & critiques
   {LGOLD}status{RESET}                    shows active model + overseer state
 
+  {GOLD}── Training Signal ───────────────────────────────────────────────{RESET}
+  {LGOLD}rate good{RESET}                 mark last response as excellent  (5/5)
+  {LGOLD}rate bad{RESET}                  mark last response as poor       (1/5)
+  {LGOLD}rate <1-5>{RESET}                numeric rating: 1=poor  5=excellent
+                            Saved to training queue — human ratings override
+                            Academy's automated scoring for future LoRA work
+
   {GOLD}── Obsidian & system ────────────────────────────────────────────{RESET}
   {LGOLD}obsidian on / off{RESET}         enable / disable Obsidian vault sync
   {LGOLD}obsidian path <vault-path>{RESET}  set Obsidian vault folder
@@ -958,6 +970,44 @@ def main() -> None:
                 print(f"  {GOLD}Anchored. This spike will be kept.{RESET}")
             else:
                 print(f"  {DIM}No active FunForge session.{RESET}")
+            continue
+
+        elif cmd.startswith("rate"):
+            parts = cmd.split()
+            score, quality = None, None
+            if len(parts) >= 2:
+                tok = parts[1].lower()
+                if tok == "good":
+                    score, quality = 5, 1.0
+                elif tok == "bad":
+                    score, quality = 1, 0.2
+                elif tok.isdigit() and 1 <= int(tok) <= 5:
+                    score = int(tok)
+                    quality = round(score / 5.0, 2)
+            if score is None:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}rate good  ·  rate bad  ·  rate 1-5{RESET}")
+                continue
+            last = _session_get_last()
+            if not last:
+                print(f"  {DIM}No exchange to rate yet — send a message first.{RESET}")
+                continue
+            entry = {
+                "prompt":    last.get("user", "")[:2000],
+                "response":  last.get("ai",   "")[:2000],
+                "rating":    score,
+                "quality":   quality,
+                "model":     last.get("model", "unknown"),
+                "timestamp": datetime.now().isoformat(),
+                "source":    "human_rated",
+            }
+            try:
+                _RATED_JSONL.parent.mkdir(parents=True, exist_ok=True)
+                with open(_RATED_JSONL, "a", encoding="utf-8") as _rf:
+                    _rf.write(json.dumps(entry) + "\n")
+                stars = "★" * score + "☆" * (5 - score)
+                print(f"  {GREEN}Rated {stars}  ({score}/5)  —  saved to training queue{RESET}")
+            except Exception as _re:
+                print(f"  {RED}Rate save failed: {_re}{RESET}")
             continue
 
         elif _FF_OK and (cmd.startswith("funforge") or cmd.startswith("spike ")):
