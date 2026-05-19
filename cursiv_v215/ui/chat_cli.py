@@ -1067,23 +1067,44 @@ def main() -> None:
                 print(f"  {DIM}Example:  babel مرحبا بالعالم{RESET}")
                 continue
 
-            print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}Encoding → Binary → English{RESET}\n")
+            print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}Any language → UTF-8 binary → English{RESET}\n")
             binary = _babel_encode(raw_input)
-            print(f"  {DIM}Binary payload ({len(raw_input)} chars → UTF-8 binary):{RESET}")
+
+            # Show binary payload
+            byte_count = len(raw_input.encode("utf-8"))
+            print(f"  {DIM}Binary payload  ({byte_count} UTF-8 bytes):{RESET}")
             for line in _babel_fmt(binary).splitlines():
                 print(f"  {LGOLD}{line}{RESET}")
             print()
 
-            # Send binary to Ollama with the Babel system prompt directly.
-            # Bypasses the main chat() routing so the Babel persona stays clean.
+            # Python decodes the binary back to Unicode — always perfect for every
+            # script (Japanese, Arabic, Chinese, etc.) because we're reversing our
+            # own UTF-8 encoding. LLMs struggle with multi-byte binary sequences;
+            # Python never does.
+            decoded = _babel_decode(binary)
+
+            # Show the original text safely — replace any unprintable chars
+            try:
+                orig_display = decoded.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+            except Exception:
+                orig_display = decoded.encode("ascii", errors="replace").decode("ascii")
+            print(f"  {DIM}Decoded original:{RESET}  {orig_display}")
+            print()
+
+            # Send the decoded text to Ollama — LLM only needs to detect language
+            # and translate, not decode binary. This works for every script.
             _babel_msgs = [
                 {"role": "system", "content": _BABEL_SYSTEM},
-                {"role": "user",   "content": binary},
+                {"role": "user",   "content": decoded},
             ]
             print(f"  {GOLD}Translation:{RESET}")
             full = ""
-            for chunk in _call_ollama(_babel_msgs, max_tokens=600):
-                print(chunk, end="", flush=True)
+            for chunk in _call_ollama(_babel_msgs, max_tokens=400):
+                try:
+                    safe = chunk.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                except Exception:
+                    safe = chunk.encode("ascii", errors="replace").decode("ascii")
+                print(safe, end="", flush=True)
                 full += chunk
             print("\n")
             # Babel runs as a one-shot tool — not added to main conversation history
