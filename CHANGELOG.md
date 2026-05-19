@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.14-U02 — Group Discovery, FunForge & Winkler-Codex (2026-05-19)
+
+### Multi-provider consensus, bounded creative spike engine, offline routing fix, and Codex model download.
+
+**Group Discovery — terminal & web app:**
+- Multi-provider consensus: Cursiv (Ollama) → xAI → OpenAI → Claude each see prior responses and build on them
+- Synthesis pass produces structured report: Agreements / Disagreements (Weighted) / Synthesis Notes
+- Cursiv binary snapshot embedded at end for sharing on X: `CURSIV|COUNCIL|Q:...|VERDICT:...|SEED:4A57|v314`
+- Command: `council <question>` in terminal; "Group Discovery" in Gradio provider dropdown
+
+**Offline routing fix:**
+- `_is_online()` TCP check gates all cloud routing — if offline, routes directly to Ollama immediately
+- `_fa_error()` now catches RATE_SENTINEL, network errors, and `getaddrinfo failed` — no more false cloud error in airplane mode
+
+**FunForge Meta — bounded creative spike:**
+- `funforge <topic>` or `spike <topic>` starts a timed creative session (default 45 min)
+- Timer displayed in status bar: `⬡FORGE:44m 59s` / `⬡FORGE:DONE` when expired
+- Commands: `forge done`, `forge extend` (+30 min, one time), `anchor this`
+- Produces exact 5-line artifact at session close: Focus / What happened / Keep / State / Next possible spark
+
+**Winkler-Codex — offline code council:**
+- "Winkler-Codex Download" button in launcher: pulls qwen2.5-coder:14b + deepseek-coder-v2:16b via Ollama (~18 GB)
+- Models review each other's work before output surfaces; launcher tray menu entry added
+
+**Cursiv as council participant:**
+- Cursiv (Ollama) now participates as first council voice in Group Discovery — uninfluenced baseline before cloud providers build on it
+
+---
+
 ## v3.14-U01 — Live Routing & Account Recovery (2026-05-19)
 
 ### True cascade routing, live status chips, security-question password reset, and offline-safe web app.

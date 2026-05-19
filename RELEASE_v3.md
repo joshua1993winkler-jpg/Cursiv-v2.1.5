@@ -1,6 +1,31 @@
-# ⬡ Cursiv v3.14-U01 Release Notes
+# ⬡ Cursiv v3.14-U02 Release Notes
 
 > *"From the Dust, We Shape the Stars."*
+
+---
+
+## What's New in v3.14-U02
+
+### Group Discovery
+Multi-provider consensus council: Cursiv (Ollama) → xAI → OpenAI → Claude each receive prior responses as context and build on them. A synthesis pass produces a structured report — Agreements / Disagreements (Weighted) / Synthesis Notes — plus a shareable Cursiv binary snapshot for posting on X.
+- Terminal: `council <question>`
+- Gradio: "Group Discovery" in the provider dropdown
+
+### FunForge Meta
+Bounded creative spike engine. Start with `funforge <topic>` or `spike <topic>` for a 45-minute focused session:
+- Timer visible in the status bar: `⬡FORGE:44m 59s`
+- `forge extend` adds 30 minutes (once). `forge done` ends the session early.
+- `anchor this` saves the session artifact permanently.
+- Auto-produces a 5-line artifact at session close: Focus / What happened / Keep / State / Next possible spark.
+
+### Offline Routing Fix
+In airplane mode, the system now short-circuits directly to Ollama before attempting any cloud provider. No more `[Claude error: getaddrinfo failed]` when offline. Ollama runs with no token limits in this state.
+
+### Winkler-Codex — Offline Code Council
+New "Winkler-Codex Download" button in the launcher (and tray menu) pulls two specialist coding models: `qwen2.5-coder:14b` (primary) and `deepseek-coder-v2:16b` (critic). They review each other before output surfaces (~18 GB total).
+
+### Cursiv as Council Participant
+Cursiv (Ollama) now participates as the first voice in Group Discovery, providing an uninfluenced baseline that cloud providers build on — not just acting as a bridge.
 
 ---
 

@@ -1,4 +1,4 @@
-# ⬡ Cursiv v3.14-U01 — Offline. Yours. Everywhere.
+# ⬡ Cursiv v3.14-U02 — Offline. Yours. Everywhere.
 
 > Not OpenAI. Not xAI. Not a subscription. A piece of AI infrastructure that lives on your machine, runs without the internet, and belongs entirely to you.
 
@@ -44,7 +44,7 @@ The goal is simple: **reduce the percentage of chance that our future generation
 
 ## Download & Install
 
-**[Download Cursiv-Setup-3.14-U01.exe](https://github.com/joshua1993winkler-jpg/Cursiv/releases/latest)**
+**[Download Cursiv-Setup-3.14-U02.exe](https://github.com/joshua1993winkler-jpg/Cursiv/releases/latest)**
 
 Double-click the installer. Click through the wizard. Done.
 
