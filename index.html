@@ -723,9 +723,10 @@ footer {
 
   <div class="chip-row">
     <span class="chip chip-v">v3.14-U02</span>
-    <span class="chip chip-new">NEW — Cascade Routing</span>
-    <span class="chip chip-new">NEW — Update Checker</span>
-    <span class="chip chip-new">NEW — Password Recovery</span>
+    <span class="chip chip-new">NEW — Web Search</span>
+    <span class="chip chip-new">NEW — Babel Agent</span>
+    <span class="chip chip-new">NEW — Group Discovery</span>
+    <span class="chip chip-new">NEW — FunForge</span>
     <span class="chip chip-os">Windows 10 / 11 · 64-bit</span>
   </div>
 
@@ -761,54 +762,54 @@ footer {
 
   <div class="grid-3 reveal-group">
     <div class="card">
-      <p class="card-tag">Routing</p>
-      <h3 class="card-title">True Cascade Routing</h3>
+      <p class="card-tag">Search</p>
+      <h3 class="card-title">Real-Time Web Search</h3>
       <p class="card-body">
-        xAI Grok-3 → OpenAI GPT-4.1 → Claude → Ollama tried in strict order. Each provider falls through on failure with a visible inline banner so you always know which path ran.<br><br>
-        Force a model for one message: <code>hey grok</code>, <code>hey claude</code>, <code>hey chat</code>, <code>hey ollama</code>. Provider dropdown in the Gradio web app.
+        Worldwide live search built in — no API key required. DuckDuckGo fires automatically on queries containing "latest", "today", "who won", "price of", and similar triggers.<br><br>
+        Results are injected into the system prompt before routing — every provider sees live facts, not training data. Upgrade to Brave Search API (2,000 free/month) by setting <code>BRAVE_API_KEY</code> in <code>secrets.bat</code>.<br><br>
+        Explicit: <code>search: &lt;query&gt;</code>
       </p>
     </div>
     <div class="card">
-      <p class="card-tag">Status</p>
-      <h3 class="card-title">Live Status Chips</h3>
+      <p class="card-tag">Language</p>
+      <h3 class="card-title">Babel Agent</h3>
       <p class="card-body">
-        Every API chip in the terminal now probes the actual endpoint on startup and after key entry.<br><br>
-        <span style="color:var(--green)">GREEN ✓</span> endpoint reachable &nbsp;·&nbsp;
-        <span style="color:var(--red)">RED ✗</span> key missing or down &nbsp;·&nbsp;
-        <span style="color:var(--amber)">GOLD ?</span> not yet tested<br><br>
-        File access, Obsidian, and Guardian chips reflect real state, not just whether a setting is toggled.
+        Type any text in any language — Cursiv encodes it to UTF-8 binary, decodes it perfectly in Python, then translates to English via the LLM. No per-language programming. Works for every Unicode script: Japanese, Arabic, Chinese, Russian, Hindi, Hebrew, Thai, and every other language on Earth.<br><br>
+        <code>babel こんにちは世界</code><br>
+        <code>babel مرحبا بالعالم</code>
       </p>
     </div>
     <div class="card">
-      <p class="card-tag">Security</p>
-      <h3 class="card-title">Password Recovery</h3>
+      <p class="card-tag">Council</p>
+      <h3 class="card-title">Group Discovery</h3>
       <p class="card-body">
-        "Forgot Password?" on the login screen. Set 3 of 20 questions at account creation. Answers are normalised, then bcrypt-hashed — never stored in plain text.<br><br>
-        Reset requires 2-of-3 answers. "Security Questions" in the launcher and tray menu — existing accounts can add recovery without recreating their login.
+        Ask one question, get four independent perspectives that build on each other. Cursiv (Ollama) answers first — uninfluenced baseline. xAI sees Cursiv's response and adds to it. OpenAI sees both. Claude sees all three.<br><br>
+        A structured synthesis follows: Agreements / Disagreements (Weighted) / Synthesis Notes. Ends with a shareable binary snapshot you can paste into any Cursiv instance to decode the full report.<br><br>
+        <code>council &lt;question&gt;</code>
       </p>
     </div>
     <div class="card">
-      <p class="card-tag">Updates</p>
-      <h3 class="card-title">Update Checker</h3>
+      <p class="card-tag">Focus</p>
+      <h3 class="card-title">FunForge Meta</h3>
       <p class="card-body">
-        "Check for Updates" in the launcher window and tray. Queries the GitHub releases API in a background thread — no data sent, read-only fetch.<br><br>
-        If newer: shows release notes and a Download &amp; Install button. 71 MB installer runs in-place. Ollama, your model, and your conversation data are completely untouched. Never auto-updates.
+        A bounded creative spike engine. Start a 45-minute focused session on any topic — the timer runs in the terminal status bar. At the end, a structured five-line artifact is produced: Focus / What happened / Keep / State / Next spark.<br><br>
+        <code>funforge &lt;topic&gt;</code> · <code>forge extend</code> (+30 min, once) · <code>forge done</code> · <code>anchor this</code>
       </p>
     </div>
     <div class="card">
-      <p class="card-tag">Web App</p>
-      <h3 class="card-title">Offline-Safe Startup</h3>
+      <p class="card-tag">Offline</p>
+      <h3 class="card-title">Offline Routing Fixed</h3>
       <p class="card-body">
-        Removed the Google Fonts network call from the Gradio theme — was causing crashes on offline startup. <code>analytics_enabled=False</code> kills Gradio telemetry entirely.<br><br>
-        API keys auto-fill from <code>secrets.bat</code> environment variables on load. Provider dropdown in the UI mirrors the terminal cascade.
+        In airplane mode, Cursiv now short-circuits directly to Ollama before attempting any cloud provider. No more <code>[Claude error: getaddrinfo failed]</code> when the network is down.<br><br>
+        Ollama runs with no token limits offline. A <code>_is_online()</code> TCP check gates all cloud routing. The system is aware of its own connectivity state.
       </p>
     </div>
     <div class="card">
-      <p class="card-tag">Repo</p>
-      <h3 class="card-title">Renamed to Cursiv</h3>
+      <p class="card-tag">Code</p>
+      <h3 class="card-title">Winkler-Codex</h3>
       <p class="card-body">
-        Repository renamed from <code>Cursiv-v3</code> to <code>Cursiv</code>. All internal URLs, API endpoints, and the git remote updated. No redirects.<br><br>
-        GitHub redirects old URLs automatically. Existing clones continue to work, though updating the remote is recommended.
+        An offline code council: two specialist models that review each other's work before you see the output. Primary: <code>qwen2.5-coder:14b</code>. Critic: <code>deepseek-coder-v2:16b</code>. Both run via Ollama — no internet, no API key.<br><br>
+        Download from the launcher window or tray menu (~18 GB total). Cursiv routes coding questions through the council automatically once models are installed.
       </p>
     </div>
   </div>
@@ -1023,8 +1024,8 @@ footer {
       <div class="tl-dot current"></div>
       <div>
         <p class="tl-ver">v3.14-U02 <span class="tl-badge now">CURRENT</span></p>
-        <p class="tl-name">Live Routing &amp; Account Recovery</p>
-        <p class="tl-desc">True cascade routing (xAI → OpenAI → Claude → Ollama), live API status chips, security-question password reset, in-place update checker, Winkler-Codex offline Code Council (qwen2.5-coder + deepseek-coder-v2 deliberating together), and the launch of cursiv.winklers-llc.com.</p>
+        <p class="tl-name">Group Discovery, Web Search &amp; Babel</p>
+        <p class="tl-desc">Real-time worldwide web search (DuckDuckGo + Brave). Babel Agent — any language to English via UTF-8 binary, no per-language programming. Group Discovery — four providers build on each other's answers toward a structured synthesis. FunForge bounded creative spike timer. Offline routing fixed. Auto-generated live system status so Cursiv always knows its own capabilities. Winkler-Codex offline code council.</p>
       </div>
     </div>
 

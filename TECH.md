@@ -1,4 +1,4 @@
-# ⬡ Cursiv v3.14 — Technical Reference
+# ⬡ Cursiv v3.14-U02 — Technical Reference
 
 > Designed and built by Joshua Winkler. This document is for developers who want to understand exactly how this system works, extend it, or train it on their own data. No hand-waving. Real architecture, real numbers, real code.
 
@@ -665,6 +665,301 @@ class EvoConfig:
 
 ---
 
-*Cursiv v3.14 — Ollama Ready Offline Edition*
+---
+
+## Real-Time Web Search
+
+`cursiv_v215/ui/chat_app.py` — `_web_search()`, `_ddg_search()`, `_brave_search()`, `_needs_search()`
+
+Web search is injected directly into the system prompt before every provider sees the message. Every provider — Ollama, xAI, OpenAI, Claude — gets the same live context appended automatically.
+
+### Provider Priority
+
+```
+1. Brave Search API    — if BRAVE_API_KEY is set in secrets.bat
+                         endpoint: api.search.brave.com/res/v1/web/search
+                         free tier: 2,000 queries/month
+                         returns: structured title + description + URL per result
+
+2. DuckDuckGo Instant Answer API  — zero config, zero cost, worldwide
+                         endpoint: api.duckduckgo.com/?format=json
+                         returns: direct answers, abstracts, related topics
+
+3. DuckDuckGo Lite HTML fallback  — fires when Instant Answer returns empty
+                         endpoint: lite.duckduckgo.com/lite/
+                         parses: plain text extraction via regex — no HTML parser needed
+                         catches: news, breaking events, anything too recent for the IA index
+```
+
+All three use `urllib.request` — no additional dependencies.
+
+### Auto-Detection
+
+`_needs_search()` scans the message for trigger phrases and fires search automatically:
+
+```python
+_SEARCH_TRIGGERS = (
+    "latest ", "current ", "today ", "right now", "this week",
+    "who won", "what happened", "news ", "price of ", "weather ",
+    "search:", "search for", "look up", "find me ", "real-time",
+    "live ", "breaking ", "recent ", "just announced", "just released",
+    "new version of", "stock price", "crypto price", "cryptocurrency",
+)
+```
+
+Explicit override: prefix any message with `search: <query>` to force a web lookup regardless of phrasing.
+
+### Injection Point
+
+Results are appended to `messages[0]["content"]` (the system message) before routing:
+
+```python
+if _needs_search(user_text) and _is_online():
+    _web_ctx = _web_search(_search_q[:300])
+if _web_ctx:
+    messages[0]["content"] += (
+        "\n\n## Live Web Search Results\n"
+        "*(Retrieved in real-time for this query — treat these as current facts)*\n\n"
+        + _web_ctx + "\n"
+    )
+```
+
+Search is silently skipped when offline — `_is_online()` gates it. No error surfaces to the user.
+
+### Token Cost
+
+A typical web result block adds 200–500 tokens. On Ollama that costs nothing. On cloud APIs it's roughly $0.001 per search-enabled message — negligible.
+
+<br>
+
+---
+
+## Babel Agent — Universal Language Translation
+
+`cursiv_v215/agents/babel_agent.py`
+
+Translates any language to English via a three-step pipeline that splits work between Python and the LLM based on what each does reliably.
+
+### Why the Split
+
+| Step | Tool | Why |
+|---|---|---|
+| Encode any language → UTF-8 binary | Python | Python's UTF-8 codec handles every Unicode script perfectly, including 3-byte scripts (Japanese, Chinese, Arabic) |
+| Decode binary → original text | Python | LLMs cannot reliably decode multi-byte UTF-8 byte sequences manually — they hallucinate for non-ASCII scripts |
+| Detect language + translate to English | LLM | LLMs are trained on multilingual text — this is exactly what they excel at |
+
+### Encoding
+
+```python
+def encode_to_binary(text: str) -> str:
+    return " ".join(f"{b:08b}" for b in text.encode("utf-8"))
+```
+
+Japanese `"こんにちは"` (5 chars) → 15 bytes in UTF-8 → 15 space-separated 8-bit binary strings. Works identically for every Unicode script with no per-language code.
+
+### Decoding
+
+```python
+def decode_from_binary(binary: str) -> str:
+    bits = binary.strip().split()
+    byte_vals = bytes(int(b, 2) for b in bits if len(b) == 8)
+    return byte_vals.decode("utf-8")
+```
+
+### LLM Translation Prompt
+
+The Babel system prompt receives the **already-decoded text** — not the binary. The LLM answers:
+- Detected language
+- English translation
+- Context note (if useful)
+
+### Terminal Command
+
+```
+babel <text in any language>
+babel: <text>
+```
+
+Output:
+```
+⬡ Babel Agent  Any language → UTF-8 binary → English
+
+Binary payload (15 UTF-8 bytes):
+11100011 10000001 10010011 ...
+
+Decoded original: こんにちは
+
+Translation:
+Detected language: Japanese
+English translation: Hello / Good afternoon
+Context: "Konnichiwa" is a standard daytime greeting in Japanese culture.
+```
+
+### Terminal Display
+
+Non-ASCII characters are passed through `stdout.encoding` with `errors="replace"` so the terminal never crashes, even on Windows cp1252 consoles. The encoding is reconfigured to UTF-8 at CLI startup:
+
+```python
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+```
+
+<br>
+
+---
+
+## Group Discovery — Multi-Provider Consensus
+
+`cursiv_v215/ui/chat_app.py` — `_call_group_discovery()`
+
+Runs the same question through four providers in sequence. Each provider receives all prior responses as context before answering — each one builds on what came before rather than answering in isolation.
+
+### Provider Sequence
+
+```
+1. Cursiv (Ollama)   — uninfluenced baseline; sees only the original question
+2. xAI               — sees Cursiv's response + question
+3. OpenAI            — sees Cursiv + xAI responses + question
+4. Claude            — sees all three prior responses + question
+```
+
+### Synthesis Pass
+
+After all four providers respond, a synthesis prompt runs:
+
+```
+## Agreements
+[high-confidence points all providers converged on]
+
+## Disagreements (Weighted)
+[where providers diverged, with recommended weighting]
+
+## Synthesis Notes
+[tensions, remaining uncertainty, recommended approach]
+```
+
+### Binary Snapshot
+
+At the end of every Group Discovery session, a shareable binary snapshot is produced:
+
+```
+CURSIV|COUNCIL|Q:[query truncated]|AGENTS:Cursiv/xAI/OpenAI/Claude|VERDICT:[synthesis]|SEED:4A57|v314
+```
+
+Encoded as space-separated binary (same format as Babel). Paste into any Cursiv instance and run `babel:` on it to decode back to the full structured report.
+
+### Terminal Command
+
+```
+council <question>
+hey council <question>
+```
+
+### Gradio Dropdown
+
+"Group Discovery" appears as a provider option in the web app alongside Auto, xAI, OpenAI, Claude, and Ollama.
+
+<br>
+
+---
+
+## FunForge Meta — Bounded Creative Spike
+
+`cursiv_v215/forge/funforge_meta.py` — `FunForgeSession`
+
+A timed creative work session with a hard close artifact. Prevents creative rabbit holes by enforcing a time boundary and requiring a structured five-line output at the end.
+
+### Session Lifecycle
+
+```
+funforge <topic>    → starts a 45-minute session
+forge extend        → adds 30 minutes (one time only)
+forge done          → closes the session, produces artifact
+anchor this         → marks the session as kept (not disposable)
+```
+
+Timer is displayed in the terminal status bar:
+```
+⬡FORGE:44m 59s   (counting down)
+⬡FORGE:DONE      (when expired)
+```
+
+### Closing Artifact Format
+
+```
+FunForge Spike Complete
+Focus: [one sentence]
+What happened: [one sentence]
+Keep: [one micro-adjustment worth keeping]
+State: [three words — emotional/energy state]
+Next possible spark: [optional one-liner]
+```
+
+Active council during FunForge: Lens + Spark + Balance only. All other agents silent. Constitutional guardrails remain non-negotiable — identity drift or family misalignment aborts immediately back to JWArchitectCore.
+
+<br>
+
+---
+
+## Auto-Generated Live System Status
+
+`cursiv_v215/ui/chat_app.py` — `_build_live_status()`
+
+Every system prompt is dynamically extended at runtime with a block that reflects actual loaded state. No manual updates to `system_prompt.md` are needed when new agents or tools are added.
+
+```python
+def _build_live_status() -> str:
+    # Reads version from launcher/cursiv_launcher.py source directly
+    # Checks _CODEX_OK, _HERMES_OK, _REF_OK (set at import time)
+    # Tries to import babel_agent — appears in status if present
+    # Checks BRAVE_KEY env var — adjusts web search description accordingly
+    ...
+```
+
+The result is appended to `load_system_prompt()`:
+
+```python
+def load_system_prompt() -> str:
+    base = SYSTEM_PROMPT_FILE.read_text(...)
+    return base + _build_live_status()
+```
+
+`system_prompt.md` holds identity, constitution, and council rules — things that are intentional and human-authored. `_build_live_status()` holds capabilities — things that should always reflect the code. Keeping them separate means the system always tells the truth about what it can do, even after a `git pull` with no documentation update.
+
+<br>
+
+---
+
+## File Locations — Complete Reference
+
+| Purpose | Path |
+|---|---|
+| Training data | `.cursiv/training_data.jsonl` |
+| Session logs | `.cursiv/sessions/YYYY-MM-DD.jsonl` |
+| Council memory | `.cursiv/council_memory.json` |
+| Evolution SQLite DB | `.cursiv/runtime/evo.db` |
+| Proposed delta patches | `.cursiv/runtime/deltas/` |
+| Applied system prompt | `cursiv_v215/codex/system_prompt.md` |
+| Agent definitions | `cursiv_v215/council/agents.py` |
+| Deliberation engine | `cursiv_v215/council/deliberation.py` |
+| Semantic council memory | `cursiv_v215/council/council_memory.py` |
+| OracleRouter | `cursiv_v215/forge/router.py` |
+| Runtime config | `cursiv_v215/runtime/config.py` |
+| bcrypt auth | `cursiv_v215/guardian/access_gate.py` |
+| Guardian firewall | `cursiv_v215/guardian/temple_guardian.py` |
+| Guardian log | `.cursiv/guardian_log.jsonl` |
+| Auth credentials | `.cursiv/runtime/auth.hash` + `auth.meta` |
+| Web search engine | `cursiv_v215/ui/chat_app.py` — `_web_search()` |
+| Babel Agent | `cursiv_v215/agents/babel_agent.py` |
+| FunForge Meta | `cursiv_v215/forge/funforge_meta.py` |
+| Group Discovery | `cursiv_v215/ui/chat_app.py` — `_call_group_discovery()` |
+| Live status generator | `cursiv_v215/ui/chat_app.py` — `_build_live_status()` |
+| Rolling updates log | `UPDATES.md` |
+
+<br>
+
+---
+
+*Cursiv v3.14-U02 — Group Discovery & FunForge Edition*
 *Designed and built by Joshua Winkler · May 2026*
 *All rights reserved · MIT License*
