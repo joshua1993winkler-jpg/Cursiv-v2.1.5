@@ -155,6 +155,24 @@ except Exception:
     def _voice_cap_backend() -> str:  return "none"
     _VOICE_CLEAN_SYS = ""
 
+# ── Code Sentinel — prompt injection + dangerous pattern guard ────────────
+try:
+    from cursiv_v215.guardian.code_sentinel import (
+        scan_content   as _sentinel_scan,
+        scan_file      as _sentinel_scan_file,
+        format_warning as _sentinel_warn,
+        BLOCK          as _SENTINEL_BLOCK,
+        WARN           as _SENTINEL_WARN,
+    )
+    _SENTINEL_OK = True
+except Exception:
+    _SENTINEL_OK = False
+    def _sentinel_scan(t, label=""):      return type("R", (), {"clean": True, "blocked": False, "level": 0})()
+    def _sentinel_scan_file(p):          return type("R", (), {"clean": True, "blocked": False, "level": 0})()
+    def _sentinel_warn(r, fn=""):        return ""
+    _SENTINEL_BLOCK = 2
+    _SENTINEL_WARN  = 1
+
 # ── Codex Agent — offline-capable coding specialist ──────────────────────
 try:
     from cursiv_v215.agents.codex_agent import (
@@ -1592,6 +1610,15 @@ def main() -> None:
                 print(f"  {RED}Read error: {_ge}{RESET}")
                 continue
 
+            # ── Sentinel: scan file before sending to LLM ─────────────────
+            if _SENTINEL_OK:
+                _gsr = _sentinel_scan_file(_gpath)
+                if _gsr.blocked:
+                    print(f"\n  {RED}{_sentinel_warn(_gsr, _gpath.name)}{RESET}\n")
+                    continue
+                elif _gsr.level >= _SENTINEL_WARN:
+                    print(f"\n  {GOLD}{_sentinel_warn(_gsr, _gpath.name)}{RESET}\n")
+
             print(f"\n  {GOLD}⬡ Grow — {_grel}{RESET}  "
                   f"{DIM}{_glines} lines · absorbing patterns…{RESET}\n")
 
@@ -1627,6 +1654,26 @@ def main() -> None:
                 sys.stdout.flush()
                 _gfull += _gchunk
             print("\n")
+
+            # ── Sentinel: scan generated code before offering to write ────
+            if _SENTINEL_OK and _gfull.strip():
+                _gosr = _sentinel_scan(_gfull, label="generated")
+                if _gosr.blocked:
+                    print(f"\n  {RED}{_sentinel_warn(_gosr, 'generated output')}{RESET}\n")
+                    print(f"  {RED}Generated code blocked — not written.{RESET}\n")
+                    if _STRAND_OK:
+                        _strand_save(
+                            f"grow [BLOCKED]: {_grel}",
+                            _gfull,
+                            tags=["grow", "blocked", "sentinel"],
+                            score=0.10,
+                            territory_tag="security",
+                            source="grow",
+                            model=_glbl,
+                        )
+                    continue
+                elif _gosr.level >= _SENTINEL_WARN:
+                    print(f"\n  {GOLD}{_sentinel_warn(_gosr, 'generated output')}{RESET}\n")
 
             # Offer to append
             if _gfull.strip():
