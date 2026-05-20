@@ -562,21 +562,48 @@ def _print_owner_reveal(cfg: dict) -> None:
     print()
 
 
+# ── Rotating command tips (cycle through on every exchange) ───────────────
+_tip_idx = 0
+_TIPS: list[tuple[str, str]] = [
+    ("council <question>",    "3-cycle multi-provider synthesis — all seeing eye"),
+    ("anchor this",           "save last exchange as a permanent Strand"),
+    ("babel <text>",          "translate any language → English via binary"),
+    ("image <prompt>",        "generate image with DALL-E 3"),
+    ("paste",                 "paste clipboard image → vision analysis → Strand"),
+    ("remember <query>",      "search your Strand archive, zero cloud, zero API"),
+    ("pull <url>",            "fetch, analyze, and strand any webpage"),
+    ("strands",               "browse the permanent memory archive"),
+    ("hey grok / hey claude", "route a single message to a specific provider"),
+    ("strand export",         "air-gap pack Strands to .cursivpack for USB transfer"),
+    ("rate good / rate bad",  "signal training quality on the last response"),
+    ("overseer on",           "Grok generates, Claude reviews every reply"),
+    ("funforge <topic>",      "bounded 45-min creative spike"),
+    ("search <query>",        "real-time web search + AI synthesis"),
+    ("files on",              "enable file-system access for AI tools"),
+    ("mode",                  "toggle AUTO / CONFIRM write mode"),
+    ("obsidian on",           "sync sessions live to your Obsidian vault"),
+    ("codex <prompt>",        "offline code specialist — no API key needed"),
+]
+
+
 # ── Input prompt box ───────────────────────────────────────────────────────
 
 def _input_prompt(cfg: dict) -> str:
     """
-    Full-width gold separator with embedded status, then a clean Eye of Horus prompt.
-    Claude Code-style: no heavy box borders, status at a glance, full terminal width.
+    Full-width gold separator with all three provider status chips, then a
+    rotating tip line, then the Eye of Horus prompt.
+    Claude Code-style: minimal, no box borders, full terminal width.
     Bracketed paste via prompt_toolkit when available.
     """
+    global _tip_idx
     w = _cols()
 
-    # Compact status chips
+    # All three provider chips
     xai_s  = _api_chip("xAI",    cfg.get("api_key", ""),       cfg.get("xai_live"))
+    oai_s  = _api_chip("OpenAI", cfg.get("openai_key", ""),    cfg.get("openai_live"))
     ant_s  = _api_chip("Claude", cfg.get("anthropic_key", ""), cfg.get("claude_live"))
-    fa_s   = (f"{GREEN}files:ON{RESET}"  if cfg.get("file_access") else f"{RED}files:OFF{RESET}")
-    mode_s = (f"{RED}CONFIRM{RESET}"     if cfg["confirm_mode"] == "confirm" else f"{GREEN}AUTO{RESET}")
+    fa_s   = (f"{GREEN}files:ON{RESET}" if cfg.get("file_access") else f"{RED}files:OFF{RESET}")
+    mode_s = (f"{RED}CONFIRM{RESET}"    if cfg["confirm_mode"] == "confirm" else f"{GREEN}AUTO{RESET}")
     ov_s   = (f"  {LAPIS}⚖{RESET}" if cfg.get("overseer_mode") else "")
 
     # TPM bar (compact 6-block)
@@ -599,11 +626,10 @@ def _input_prompt(cfg: dict) -> str:
         ff_s = (f"  {RED}⬡DONE{RESET}" if ff.expired
                 else f"  {GOLD}⬡{ff.time_display()}{RESET}")
 
-    # Status string centered in the full-width gold separator
-    # 𓂀 (Eye of Horus) anchors the left of the status block
+    # Full-width gold separator — Eye of Horus + all provider chips
     status = (
         f" {GOLD}𓂀{RESET}  "
-        f"{xai_s}  {ant_s}  {fa_s}  {mode_s}"
+        f"{xai_s}  {oai_s}  {ant_s}  {fa_s}  {mode_s}"
         f"{ov_s}{ff_s}{tpm_chip}  {SILV2}·{RESET} "
     )
     sw     = _vlen(status)
@@ -613,6 +639,11 @@ def _input_prompt(cfg: dict) -> str:
     sep    = f"{LGOLD}{'─' * lw}{RESET}{status}{LGOLD}{'─' * rw}{RESET}"
 
     print(f"\n{sep}")
+
+    # Rotating tip — advances each exchange so users discover all commands
+    tip_cmd, tip_desc = _TIPS[_tip_idx % len(_TIPS)]
+    _tip_idx += 1
+    print(f"  {SILV2}·{RESET}  {LGOLD}{tip_cmd}{RESET}  {DIM}{tip_desc}{RESET}")
 
     # 𓂀 = Eye of Horus (U+13080). Requires Noto Sans Egyptian Hieroglyphs or
     # Segoe UI Historic — shows as □ on systems without the font; swap to ⊙.
