@@ -146,6 +146,79 @@ def _bar(label: str, current: int, total: int) -> str:
             f"{label[:40]}")
 
 
+# ── Reconnaissance: build system intelligence map ─────────────────────────────
+# This is what makes evolution context-aware instead of file-by-file blind.
+# Before touching a single file we read the whole priority list, extract
+# structure (exports, inter-module imports, key constants, docstrings) and
+# include that map in every LLM call.  Result: the model knows the full
+# dependency graph when it rewrites any individual file.
+
+def _build_intelligence(source: Path, files: list[Path]) -> str:
+    """
+    Reconnaissance pass over all source files.
+    Returns a compact system map (<3000 tokens) included in every evolution call.
+    """
+    import ast
+
+    sections: list[str] = [
+        "# Cursiv System Intelligence — cross-file context for evolution\n\n"
+        "Use this map to ensure evolved files stay import-compatible with the "
+        "rest of the system.  Never break an exported name another module imports.\n\n"
+    ]
+
+    for f in files:
+        rel = str(f.relative_to(source)).replace("\\", "/")
+        try:
+            code = f.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+
+        # Module-level docstring (first line only)
+        module_doc = ""
+        top_names:    list[str] = []
+        cursiv_deps:  list[str] = []
+        key_constants: list[str] = []
+
+        try:
+            tree = ast.parse(code)
+            module_doc = (ast.get_docstring(tree) or "").split("\n")[0][:100]
+
+            for node in ast.iter_child_nodes(tree):
+                # Top-level definitions — these are the public API
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    top_names.append(node.name)
+
+                # Inter-module imports within cursiv — dependency edges
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module and "cursiv" in node.module:
+                        names = ", ".join(a.name for a in node.names)
+                        cursiv_deps.append(f"{node.module} ({names})")
+
+                # Key constants (UPPER_CASE assignments)
+                elif isinstance(node, ast.Assign):
+                    for t in node.targets:
+                        if isinstance(t, ast.Name) and t.id.isupper():
+                            key_constants.append(t.id)
+
+        except SyntaxError:
+            pass
+        except Exception:
+            pass
+
+        block = [f"### {rel}"]
+        if module_doc:
+            block.append(f"  purpose: {module_doc}")
+        if top_names:
+            block.append(f"  exports: {', '.join(top_names[:20])}")
+        if cursiv_deps:
+            block.append(f"  depends: {' | '.join(cursiv_deps[:6])}")
+        if key_constants:
+            block.append(f"  constants: {', '.join(key_constants[:10])}")
+        sections.append("\n".join(block) + "\n")
+
+    return "\n".join(sections)
+
+
 # ── LLM call (streaming, no external deps) ───────────────────────────────────
 
 def _call_anthropic(messages: list[dict], key: str) -> str:
@@ -224,11 +297,30 @@ def _call_ollama(messages: list[dict]) -> str:
     return body["message"]["content"]
 
 
-def _evolve_file(source_code: str, filename: str, provider: str, key: str) -> tuple[str, str]:
-    """Send file to LLM for evolution. Returns (evolved_code, provider_used)."""
+def _evolve_file(
+    source_code: str,
+    filename: str,
+    provider: str,
+    key: str,
+    intelligence: str = "",
+) -> tuple[str, str]:
+    """
+    Send file to LLM for evolution.
+    intelligence = the system map built during reconnaissance — gives the model
+    full cross-file context so it never breaks imports or public APIs.
+    Returns (evolved_code, provider_used).
+    """
+    system = EVOLUTION_SYSTEM
+    if intelligence:
+        system = (
+            EVOLUTION_SYSTEM
+            + "\n\n"
+            + intelligence
+        )
+
     messages = [
-        {"role": "system", "content": EVOLUTION_SYSTEM},
-        {"role": "user",   "content": f"# File: {filename}\n\n{source_code}"},
+        {"role": "system", "content": system},
+        {"role": "user",   "content": f"# File to evolve: {filename}\n\n{source_code}"},
     ]
     if provider == "claude" and key:
         return _call_anthropic(messages, key), "Claude"
@@ -320,6 +412,16 @@ def main() -> None:
             print(f"  {LGOLD}{i:>3}.{RESET}  {rel}")
         return
 
+    # ── Reconnaissance pass ───────────────────────────────────────────────────
+    # Read the full system before touching any file.  This is what separates
+    # intelligent evolution from blind file-by-file transformation: the LLM
+    # gets a dependency map so it never breaks cross-file contracts.
+    print(f"  {LGOLD}Reconnaissance pass — mapping {len(files)} files…{RESET}", end="", flush=True)
+    intelligence = _build_intelligence(source, files)
+    intel_tokens = len(intelligence) // 4  # rough token estimate
+    print(f"\r  {GREEN}System map built{RESET}  {DIM}{len(intelligence)} chars (~{intel_tokens} tokens){RESET}  "
+          f"{DIM}included in every evolution call{RESET}\n")
+
     target.mkdir(parents=True, exist_ok=True)
     manifest_lines: list[str] = [
         "# Cursiv Evolution Manifest\n",
@@ -359,7 +461,7 @@ def main() -> None:
             print(f"  {LGOLD}  evolving via {pname}…{RESET}", end="", flush=True)
             t0 = time.time()
             try:
-                evolved, used = _evolve_file(source_code, rel_str, provider, key)
+                evolved, used = _evolve_file(source_code, rel_str, provider, key, intelligence)
             except Exception as e:
                 print(f"\r  {RED}  failed: {e}{RESET}")
                 manifest_lines.append(f"| {idx} | `{rel_str}` | ERROR | evolve: {e} |\n")
