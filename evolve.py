@@ -280,21 +280,98 @@ def _call_openai(messages: list[dict], key: str) -> str:
     return body["choices"][0]["message"]["content"]
 
 
-def _call_ollama(messages: list[dict]) -> str:
+def _detect_ollama_model() -> tuple[str, int]:
+    """
+    Query Ollama for available models and pick the best one for code evolution.
+    Returns (model_name, context_size_tokens).
+    Prefers code-tuned or larger-context models; falls back to first available.
+    """
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as r:
+            data = json.loads(r.read())
+        models = [m["name"] for m in data.get("models", [])]
+    except Exception:
+        return "llama3.1", 8192  # blind fallback
+
+    if not models:
+        return "llama3.1", 8192
+
+    # Preference order: large context code models first
+    PREF = [
+        ("qwen2.5-coder", 32768),
+        ("deepseek-coder", 32768),
+        ("codestral",      32768),
+        ("llama3.3",       32768),
+        ("llama3.1:70b",   32768),
+        ("mistral-large",  32768),
+        ("qwen2.5",        32768),
+        ("llama3.1",        8192),
+        ("llama3",          8192),
+        ("mistral",         8192),
+        ("phi4",            8192),
+        ("phi3",            4096),
+    ]
+    for pref, ctx in PREF:
+        for m in models:
+            if m.lower().startswith(pref):
+                return m, ctx
+
+    # Unknown model — assume 8k context
+    return models[0], 8192
+
+
+def _call_ollama(messages: list[dict], model: str = "", ctx: int = 8192) -> str:
+    if not model:
+        model, ctx = _detect_ollama_model()
     payload = json.dumps({
-        "model": "llama3.1",
+        "model":   model,
         "messages": messages,
-        "stream": False,
-        "options": {"num_predict": 8192},
+        "stream":  False,
+        "options": {
+            "num_predict": min(8192, ctx // 2),
+            "num_ctx":     ctx,
+        },
     }).encode()
     req = urllib.request.Request(
         "http://localhost:11434/api/chat",
         data=payload,
         headers={"content-type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=300) as r:
+    with urllib.request.urlopen(req, timeout=600) as r:
         body = json.loads(r.read())
     return body["message"]["content"]
+
+
+def _chunk_file(code: str, max_lines: int = 150) -> list[str]:
+    """
+    Split a large file into logical chunks at class/function boundaries.
+    Each chunk is evolved independently then reassembled.
+    max_lines: target chunk size (will overshoot slightly to avoid cutting mid-function).
+    """
+    lines = code.splitlines(keepends=True)
+    if len(lines) <= max_lines:
+        return [code]
+
+    chunks: list[str] = []
+    current: list[str] = []
+    current_len = 0
+
+    for i, line in enumerate(lines):
+        current.append(line)
+        current_len += 1
+        # Break at a clean boundary: top-level def/class after min chunk size
+        if current_len >= max_lines:
+            stripped = line.strip()
+            if stripped.startswith(("def ", "class ", "# ──", "async def ")):
+                # Look ahead — don't break if this is the only line of a section
+                chunks.append("".join(current[:-1]))
+                current = [line]
+                current_len = 1
+
+    if current:
+        chunks.append("".join(current))
+
+    return [c for c in chunks if c.strip()]
 
 
 def _evolve_file(
@@ -303,32 +380,66 @@ def _evolve_file(
     provider: str,
     key: str,
     intelligence: str = "",
+    ollama_model: str = "",
+    ollama_ctx:   int  = 8192,
 ) -> tuple[str, str]:
     """
     Send file to LLM for evolution.
-    intelligence = the system map built during reconnaissance — gives the model
-    full cross-file context so it never breaks imports or public APIs.
+    For large files in offline mode, automatically chunks into ~150-line
+    segments so they fit inside local model context windows.
     Returns (evolved_code, provider_used).
     """
     system = EVOLUTION_SYSTEM
     if intelligence:
-        system = (
-            EVOLUTION_SYSTEM
-            + "\n\n"
-            + intelligence
-        )
+        system = EVOLUTION_SYSTEM + "\n\n" + intelligence
 
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user",   "content": f"# File to evolve: {filename}\n\n{source_code}"},
-    ]
-    if provider == "claude" and key:
-        return _call_anthropic(messages, key), "Claude"
-    if provider == "xai" and key:
-        return _call_xai(messages, key), "xAI Grok"
-    if provider == "openai" and key:
-        return _call_openai(messages, key), "OpenAI"
-    return _call_ollama(messages), "Ollama"
+    def _call(content: str) -> str:
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user",   "content": f"# File to evolve: {filename}\n\n{content}"},
+        ]
+        if provider == "claude" and key:
+            return _call_anthropic(messages, key)
+        if provider == "xai" and key:
+            return _call_xai(messages, key)
+        if provider == "openai" and key:
+            return _call_openai(messages, key)
+        return _call_ollama(messages, model=ollama_model, ctx=ollama_ctx)
+
+    # For offline/Ollama: chunk large files so they fit in local context.
+    # Cloud APIs (Claude/xAI/OpenAI) have 100k+ context — send whole file.
+    is_cloud = (provider == "claude" and key) or \
+               (provider == "xai"    and key) or \
+               (provider == "openai" and key)
+
+    line_count = source_code.count("\n")
+    # Offline threshold: leave room for system prompt + intelligence map
+    offline_limit = max(80, (ollama_ctx // 4) - 200)
+
+    if is_cloud or line_count <= offline_limit:
+        result = _call(source_code)
+        provider_label = {"claude": "Claude", "xai": "xAI Grok", "openai": "OpenAI"}.get(
+            provider, f"Ollama ({ollama_model or 'auto'})"
+        )
+        return result, provider_label
+
+    # ── Chunked offline evolution ─────────────────────────────────────────────
+    chunks    = _chunk_file(source_code, max_lines=offline_limit)
+    evolved   = []
+    model_lbl = f"Ollama ({ollama_model or 'auto'}) ×{len(chunks)} chunks"
+    for i, chunk in enumerate(chunks, 1):
+        print(f"\r    {DIM}chunk {i}/{len(chunks)}…{RESET}", end="", flush=True)
+        evolved_chunk = _call(
+            f"# CHUNK {i}/{len(chunks)} of {filename}\n"
+            f"# Evolve only this section. Preserve all imports and function signatures.\n\n"
+            + chunk
+        )
+        # Strip markdown fences from each chunk
+        evolved_chunk = re.sub(r"^```python\s*\n?", "", evolved_chunk.strip())
+        evolved_chunk = re.sub(r"\n?```\s*$", "", evolved_chunk)
+        evolved.append(evolved_chunk)
+
+    return "\n\n".join(evolved), model_lbl
 
 
 # ── File collection ───────────────────────────────────────────────────────────
@@ -368,8 +479,9 @@ def _collect_files(source: Path) -> list[Path]:
 
 def main() -> None:
     args      = sys.argv[1:]
-    list_only = "--list" in args
-    resume    = "--resume" in args
+    list_only = "--list"    in args
+    resume    = "--resume"  in args
+    offline   = "--offline" in args   # force Ollama even if API keys are set
     args      = [a for a in args if not a.startswith("--")]
 
     source = Path(args[0]) if len(args) > 0 else DEFAULT_SOURCE
@@ -382,18 +494,26 @@ def main() -> None:
         print(f"{RED}Source not found: {source}{RESET}")
         sys.exit(1)
 
-    # Detect provider
-    ant_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    xai_key = os.environ.get("XAI_API_KEY", "")
-    oai_key = os.environ.get("OPENAI_API_KEY", "")
+    # Detect provider — offline flag forces Ollama regardless of keys
+    ant_key = "" if offline else os.environ.get("ANTHROPIC_API_KEY", "")
+    xai_key = "" if offline else os.environ.get("XAI_API_KEY", "")
+    oai_key = "" if offline else os.environ.get("OPENAI_API_KEY", "")
+
+    ollama_model, ollama_ctx = "", 8192
     if ant_key:
-        provider, key, pname = "claude",  ant_key, "Claude"
+        provider, key, pname = "claude",  ant_key, "Claude (claude-sonnet-4-6)"
     elif xai_key:
         provider, key, pname = "xai",     xai_key, "xAI Grok"
     elif oai_key:
-        provider, key, pname = "openai",  oai_key, "OpenAI"
+        provider, key, pname = "openai",  oai_key, "OpenAI GPT-4.1"
     else:
-        provider, key, pname = "ollama",  "",      "Ollama (local)"
+        provider, key = "ollama", ""
+        print(f"  {LGOLD}Detecting local Ollama model…{RESET}", end="", flush=True)
+        ollama_model, ollama_ctx = _detect_ollama_model()
+        pname = f"Ollama — {ollama_model}  (ctx: {ollama_ctx // 1000}k)"
+        print(f"\r  {GREEN}Offline model:{RESET}  {ollama_model}  "
+              f"{DIM}context: {ollama_ctx // 1000}k tokens{RESET}  "
+              + (f"{GREEN}ready{RESET}" if ollama_model != "llama3.1" or True else f"{RED}not found{RESET}"))
 
     files = _collect_files(source)
 
@@ -461,7 +581,10 @@ def main() -> None:
             print(f"  {LGOLD}  evolving via {pname}…{RESET}", end="", flush=True)
             t0 = time.time()
             try:
-                evolved, used = _evolve_file(source_code, rel_str, provider, key, intelligence)
+                evolved, used = _evolve_file(
+                    source_code, rel_str, provider, key, intelligence,
+                    ollama_model=ollama_model, ollama_ctx=ollama_ctx,
+                )
             except Exception as e:
                 print(f"\r  {RED}  failed: {e}{RESET}")
                 manifest_lines.append(f"| {idx} | `{rel_str}` | ERROR | evolve: {e} |\n")
