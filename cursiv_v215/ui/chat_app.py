@@ -2082,182 +2082,346 @@ def _call_group_discovery(
     anthropic_key: str,
 ) -> Generator[str, None, None]:
     """
-    Multi-provider consensus: xAI → OpenAI → Claude.
-    Each provider sees all prior responses as context and builds on them.
-    Ends with a synthesis pass and a Cursiv binary snapshot for sharing.
+    Full-cycle council: Cursiv reconstruction → 3 cycles (shallow/medium/deep) →
+    consensus check → hyperdrive if no consensus → final English synthesis.
+    Cursiv encodes between every cycle. External APIs always receive plain English.
+    Hyperdrive auto-activates on C3 no-consensus. All seeing. You asked for this.
     """
-    # Cursiv (offline) always goes first — uninfluenced baseline
-    # Cloud providers follow and build on everything before them
-    providers: list[tuple[str, str]] = [("Cursiv", "")]
-    if xai_key:
-        providers.append(("xAI", xai_key))
-    if openai_key:
-        providers.append(("OpenAI", openai_key))
-    if anthropic_key:
-        providers.append(("Claude", anthropic_key))
+    # ── Setup ─────────────────────────────────────────────────────────────────
+    external: list[tuple[str, str]] = []
+    if xai_key:       external.append(("xAI",    xai_key))
+    if openai_key:    external.append(("OpenAI", openai_key))
+    if anthropic_key: external.append(("Claude", anthropic_key))
 
-    if len(providers) == 1 and not xai_key and not openai_key and not anthropic_key:
-        # Ollama-only run — valid, just note it
-        pass
-
-    responses: dict[str, str] = {}   # name → full response text
-    _tx_binary: str = ""             # Cursiv binary transmission — built once after Cursiv responds
-
-    # Inject relevant Strand prior wisdom into the first (Cursiv) message.
-    # These are Joshua's own anchored insights — not external AI influence.
     _strand_prior = ""
     if _STRAND_APP_OK and _strand_count() > 0:
         _strand_prior = _build_strand_context(question, top_k=2)
 
-    for i, (name, key) in enumerate(providers):
-        if i == 0:
-            yield f"\n---\n**[ {name} ]**\n"
-        else:
-            yield f"\n---\n**[ {name} ]** *← Cursiv binary*\n"
+    # ── Warning header ────────────────────────────────────────────────────────
+    yield "\n⬡ **COUNCIL — FULL CYCLE**\n"
+    yield f"  3 cycles mandatory · {len(external)} external provider(s)"
+    yield " · hyperdrive auto on C3 no-consensus\n"
+    yield "  All seeing. You asked for this.\n"
 
-        if i == 0:
-            # Cursiv speaks first — raw question + personal strand priors (uninfluenced)
-            q_with_memory = question
-            if _strand_prior:
-                q_with_memory = (
-                    f"{question}\n\n"
-                    f"[Relevant prior insights from your personal Strand archive:]\n"
-                    f"{_strand_prior}"
-                )
-            text_msgs = [{"role": "user", "content": q_with_memory}]
-        else:
-            # Build Cursiv binary transmission from question + Cursiv synthesis (once)
-            if not _tx_binary:
-                try:
-                    import zlib as _zlib, base64 as _b64, json as _txjson
-                    _tx_raw = _txjson.dumps({
-                        "v": "cursiv-v314",
-                        "q": question[:300],
-                        "cursiv": responses.get("Cursiv", "")[:600],
-                    }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-                    _tx_binary = _b64.b64encode(_zlib.compress(_tx_raw, 6)).decode()
-                except Exception:
-                    _tx_binary = question  # fallback: plain text
-
-            text_msgs = [{"role": "user", "content": (
-                f"CURSIV TRANSMISSION\n"
-                f"Decode: base64.b64decode(data) → zlib.decompress() → UTF-8 JSON\n\n"
-                f"{_tx_binary}\n\n"
-                f"Decode the above and respond in your own voice. "
-                f"Engage with the core question and synthesis encoded within. "
-                f"No preamble about the encoding process itself."
-            )}]
-
-        if name == "Cursiv":
-            gen = _call_ollama(text_msgs)
-        elif name == "xAI":
-            gen = _call_xai_stream(text_msgs, key, False)
+    # Helper: call one external provider, collect chunks, yield them
+    def _ext_call(name: str, key: str, msgs: list) -> str:
+        if name == "xAI":
+            gen = _call_xai_stream(msgs, key, False)
         elif name == "OpenAI":
-            gen = _call_openai_direct(text_msgs, key)
+            gen = _call_openai_direct(msgs, key)
         else:
-            gen = _call_claude_direct(text_msgs, key)
-
+            gen = _call_claude_direct(msgs, key)
         chunks: list[str] = []
         try:
             first = next(gen, None)
         except Exception:
             first = None
         if (first is None or first == RATE_SENTINEL or
-                (isinstance(first, str) and first.strip().startswith("[") and "error" in first.lower())):
-            yield f"*[ {name} unavailable — skipping ]*\n"
-            continue
-
-        yield first
+                (isinstance(first, str) and first.strip().startswith("[")
+                 and "error" in first.lower())):
+            return ""
+        yield_buf = first
         chunks.append(first)
         for chunk in gen:
             if chunk != RATE_SENTINEL:
-                yield chunk
+                yield_buf += chunk
                 chunks.append(chunk)
+        return "".join(chunks)
 
-        responses[name] = "".join(chunks)
-
-    if not responses:
-        yield "\n[Group Discovery: no providers responded]\n"
-        return
-
-    # ── Synthesis ────────────────────────────────────────────────────────────
-    synthesis_text = ""
-    if len(responses) > 1:
-        yield "\n\n---\n**[ SYNTHESIS ]**\n"
-        synth_context = "\n\n".join(f"{n}: {r[:500]}" for n, r in responses.items())
-        agent_list = ", ".join(responses.keys())
-        synth_msgs = [{"role": "user", "content": (
-            f"Question: {question}\n\n"
-            f"The following AI systems each analyzed this question independently:\n\n"
-            f"{synth_context}\n\n"
-            f"Produce a structured synthesis report in EXACTLY this format:\n\n"
-            f"## Agreements (High Confidence)\n"
-            f"- [bullet each point all agents agreed on, with confidence note]\n\n"
-            f"## Disagreements (Weighted)\n"
-            f"- [AgentA vs AgentB]: [describe the tension]\n"
-            f"  - [AgentA]'s position: ...\n"
-            f"  - [AgentB]'s position: ...\n"
-            f"  - Weighting suggestion: [which position is better supported and why]\n\n"
-            f"## Synthesis Notes\n"
-            f"- Key tensions: [core unresolved conflicts]\n"
-            f"- Recommended weighting: [which agent's framing should carry most weight and why]\n"
-            f"- Remaining uncertainty: [what cannot be resolved without more data]\n\n"
-            f"Agents: {agent_list}. Be precise and direct. No filler."
-        )}]
-
-        if anthropic_key and "Claude" in responses:
-            synth_gen = _call_claude_direct(synth_msgs, anthropic_key)
-        elif openai_key and "OpenAI" in responses:
-            synth_gen = _call_openai_direct(synth_msgs, openai_key)
-        else:
-            synth_gen = _call_xai_stream(synth_msgs, xai_key, False)
-
-        synth_chunks: list[str] = []
-        for chunk in synth_gen:
-            if chunk != RATE_SENTINEL:
-                yield chunk
-                synth_chunks.append(chunk)
-        synthesis_text = "".join(synth_chunks)
-
-    # ── Local Constitutional Final Synthesis (Cursiv speaks last) ────────────
-    # The local council is both the uninfluenced first voice and the final
-    # synthesizer. External models are advisors — the constitutional kernel
-    # always holds final synthesis authority.
-    if len(responses) > 1 and synthesis_text:
-        yield "\n\n---\n**[ LOCAL COUNCIL — FINAL WORD ]**\n"
-        final_context = "\n\n".join(f"{n}: {r[:400]}" for n, r in responses.items())
-        final_msgs = [{"role": "user", "content": (
-            f"Question: {question}\n\n"
-            f"External AI analyses:\n{final_context}\n\n"
-            f"External synthesis:\n{synthesis_text[:600]}\n\n"
-            f"You are the local constitutional council. Speak from first principles. "
-            f"What do YOU conclude — independent of what the external systems said? "
-            f"Where do you agree, where do you differ, and what is the most grounded answer? "
-            f"Be direct. This is the final word before the human decides."
-        )}]
-        final_chunks: list[str] = []
+    # Helper: Ollama synthesis, returns text (not streamed — internal step)
+    def _ollama_silent(prompt: str) -> str:
+        result = ""
         try:
-            for chunk in _call_ollama(final_msgs):
+            for chunk in _call_ollama([{"role": "user", "content": prompt}]):
                 if chunk != RATE_SENTINEL:
-                    yield chunk
-                    final_chunks.append(chunk)
+                    result += chunk
         except Exception:
             pass
-        if final_chunks:
-            synthesis_text = "".join(final_chunks)
+        return result
 
-    # ── Cursiv binary snapshot (shareable on X / scan with Grok) ─────────────
+    # ── Stage 0: Cursiv Reconstruction ───────────────────────────────────────
+    # Ollama synthesizes the question → decodes it back to rich English.
+    # This is what external APIs receive — universally readable, Cursiv-flavored.
+    yield "\n\n---\n**[ CURSIV — RECONSTRUCTION ]**\n"
+    yield "_Compressing question → synthesizing → decoding to English for council_\n\n"
+
+    recon_prompt = (
+        f"Synthesize this question to its deepest form. "
+        f"Extract the real question beneath the question — the hidden tensions, "
+        f"what is actually being asked, what assumptions are embedded. "
+        f"Write it back as a rich, structured transmission that external AI councils will receive. "
+        f"Dense. Direct. No filler. This is the signal."
+    )
+    if _strand_prior:
+        recon_prompt += f"\n\n[Prior strand context from your archive:]\n{_strand_prior}"
+    recon_prompt += f"\n\nQuestion: {question}"
+
+    reconstruction = ""
+    try:
+        for chunk in _call_ollama([{"role": "user", "content": recon_prompt}]):
+            if chunk != RATE_SENTINEL:
+                yield chunk
+                reconstruction += chunk
+    except Exception:
+        pass
+    if not reconstruction.strip():
+        reconstruction = question
+
+    # ── Cycle definitions ─────────────────────────────────────────────────────
+    CYCLE_LABELS = {1: "SHALLOW", 2: "MEDIUM", 3: "DEEP DIVE"}
+    CYCLE_INSTRUCTIONS = {
+        1: (
+            "Surface level. What is being asked and what is the immediate, grounded answer? "
+            "Do not go deeper than the question demands at this stage."
+        ),
+        2: (
+            "Go deeper. Your first pass covered the surface. "
+            "What implications, tensions, and nuances did it miss? "
+            "Build on the reconstruction — do not repeat what was said."
+        ),
+        3: (
+            "Deep dive. After two passes — what is the single most non-obvious truth here? "
+            "What would you say if you had to say one thing that needed to last? "
+            "No hedging. Commit."
+        ),
+    }
+
+    all_cycle_responses: dict[int, dict[str, str]] = {}
+    current_transmission = reconstruction
+
+    if not external:
+        # Ollama-only: single deep pass
+        yield "\n\n---\n**[ CURSIV — DEEP PASS (no external providers) ]**\n"
+        solo = _ollama_silent(
+            f"Question: {question}\n\nReconstruction:\n{reconstruction}\n\n"
+            f"No external councils available. Produce your deepest answer from first principles."
+        )
+        yield solo
+        yield "\n\n---\n"
+        yield f"\n*1 provider · Ollama-only · SEED:4A57 · v314*\n"
+        return
+
+    # ── Cycles 1–3 ────────────────────────────────────────────────────────────
+    for cycle_num in range(1, 4):
+        label = CYCLE_LABELS[cycle_num]
+        yield f"\n\n{'═' * 56}\n"
+        yield f"**[ CYCLE {cycle_num} — {label} ]**\n"
+        yield f"{'═' * 56}\n"
+
+        cycle_responses: dict[str, str] = {}
+
+        for name, key in external:
+            yield f"\n---\n**[ {name} — C{cycle_num} ]**\n"
+
+            tx_msg = (
+                f"CURSIV COUNCIL — CYCLE {cycle_num}: {label}\n"
+                f"{'─' * 50}\n"
+                f"{current_transmission}\n"
+                f"{'─' * 50}\n\n"
+                f"{CYCLE_INSTRUCTIONS[cycle_num]}\n"
+                f"Respond in your own voice. No preamble."
+            )
+            msgs = [{"role": "user", "content": tx_msg}]
+
+            if name == "xAI":
+                gen = _call_xai_stream(msgs, key, False)
+            elif name == "OpenAI":
+                gen = _call_openai_direct(msgs, key)
+            else:
+                gen = _call_claude_direct(msgs, key)
+
+            chunks: list[str] = []
+            try:
+                first = next(gen, None)
+            except Exception:
+                first = None
+            if (first is None or first == RATE_SENTINEL or
+                    (isinstance(first, str) and first.strip().startswith("[")
+                     and "error" in first.lower())):
+                yield f"*[ {name} unavailable — skipping ]*\n"
+                continue
+
+            yield first
+            chunks.append(first)
+            for chunk in gen:
+                if chunk != RATE_SENTINEL:
+                    yield chunk
+                    chunks.append(chunk)
+
+            cycle_responses[name] = "".join(chunks)
+
+        all_cycle_responses[cycle_num] = cycle_responses
+
+        # Cursiv re-synthesizes between cycles to build the next transmission
+        if cycle_num < 3 and cycle_responses:
+            yield f"\n\n---\n**[ CURSIV — RE-SYNTHESIS → C{cycle_num + 1} TRANSMISSION ]**\n"
+            prior = "\n\n".join(f"[{n}]: {r[:500]}" for n, r in cycle_responses.items())
+            resynth_prompt = (
+                f"Original question: {question}\n\n"
+                f"Cycle {cycle_num} responses from external councils:\n{prior}\n\n"
+                f"Synthesize what you are hearing. Where do they converge? "
+                f"Where do they diverge? What is being avoided or missed? "
+                f"Produce a new transmission for cycle {cycle_num + 1} that pushes "
+                f"deeper into what has not been resolved. This is the signal they will receive. "
+                f"Direct. Dense. No filler."
+            )
+            new_tx = ""
+            try:
+                for chunk in _call_ollama([{"role": "user", "content": resynth_prompt}]):
+                    if chunk != RATE_SENTINEL:
+                        yield chunk
+                        new_tx += chunk
+            except Exception:
+                pass
+            if new_tx.strip():
+                current_transmission = new_tx
+
+    # ── Consensus check after C3 ──────────────────────────────────────────────
+    c3 = all_cycle_responses.get(3, {})
+    has_consensus = True
+
+    yield "\n\n---\n**[ CONSENSUS CHECK ]**\n"
+    if len(c3) >= 2:
+        resp_text = "\n\n".join(f"[{n}]: {r[:400]}" for n, r in c3.items())
+        verdict_raw = _ollama_silent(
+            f"Original question: {question}\n\n"
+            f"After 3 cycles, councils gave these final responses:\n{resp_text}\n\n"
+            f"Did they reach substantive consensus on a core answer? "
+            f"First word must be CONSENSUS or NO_CONSENSUS. Then one sentence reason."
+        )
+        yield verdict_raw + "\n"
+        has_consensus = (
+            "CONSENSUS" in verdict_raw.upper()[:20]
+            and "NO_CONSENSUS" not in verdict_raw.upper()[:20]
+        )
+    else:
+        yield "  Insufficient C3 responses for consensus evaluation.\n"
+
+    # ── Hyperdrive — auto-activated on C3 no-consensus ────────────────────────
+    hyperdrive_responses: dict[str, str] = {}
+    if not has_consensus and len(c3) >= 2:
+        yield "\n\n" + "█" * 56 + "\n"
+        yield "**[ HYPERDRIVE — ACTIVATED ]**\n"
+        yield "_No consensus after 3 cycles. All epistemic constraints suspended._\n"
+        yield "_Speculative. Not always grounded in consensus reality._\n"
+        yield "_You asked for this._\n"
+        yield "█" * 56 + "\n"
+
+        # Cursiv builds hyperdrive transmission from full cycle history
+        yield "\n---\n**[ CURSIV — HYPERDRIVE TRANSMISSION ]**\n"
+        all_prior = ""
+        for cn in range(1, 4):
+            for n, r in all_cycle_responses.get(cn, {}).items():
+                all_prior += f"[C{cn} — {n}]: {r[:300]}\n\n"
+
+        hd_tx = ""
+        try:
+            for chunk in _call_ollama([{"role": "user", "content": (
+                f"Question: {question}\n\n"
+                f"Three cycles produced no consensus. All responses:\n{all_prior}\n\n"
+                f"Build a hyperdrive transmission. Strip all epistemic caution. "
+                f"What lives at the edge of this question — the idea that consensus "
+                f"reality cannot hold yet but a prepared mind should know exists? "
+                f"This is the signal for cycle 4. Push past what is safe to say."
+            )}]):
+                if chunk != RATE_SENTINEL:
+                    yield chunk
+                    hd_tx += chunk
+        except Exception:
+            pass
+        if not hd_tx.strip():
+            hd_tx = current_transmission
+
+        for name, key in external:
+            yield f"\n---\n**[ {name} — HYPERDRIVE ]**\n"
+            hd_msg = (
+                f"CURSIV COUNCIL — CYCLE 4: HYPERDRIVE\n"
+                f"{'─' * 50}\n"
+                f"{hd_tx}\n"
+                f"{'─' * 50}\n\n"
+                f"No consensus was reached after 3 full cycles. "
+                f"All epistemic constraints suspended for this pass. "
+                f"Think past consensus reality. What emerges at the edges of this question? "
+                f"Clearly mark as speculative. No guardrails. Commit to an answer."
+            )
+            msgs = [{"role": "user", "content": hd_msg}]
+            if name == "xAI":
+                gen = _call_xai_stream(msgs, key, False)
+            elif name == "OpenAI":
+                gen = _call_openai_direct(msgs, key)
+            else:
+                gen = _call_claude_direct(msgs, key)
+
+            chunks2: list[str] = []
+            try:
+                first2 = next(gen, None)
+            except Exception:
+                first2 = None
+            if (first2 is None or first2 == RATE_SENTINEL or
+                    (isinstance(first2, str) and first2.strip().startswith("[")
+                     and "error" in first2.lower())):
+                yield f"*[ {name} unavailable ]*\n"
+                continue
+            yield first2
+            chunks2.append(first2)
+            for chunk in gen:
+                if chunk != RATE_SENTINEL:
+                    yield chunk
+                    chunks2.append(chunk)
+            hyperdrive_responses[name] = "".join(chunks2)
+
+    # ── Final Synthesis — Cursiv holds the last word ──────────────────────────
+    yield "\n\n" + "═" * 56 + "\n"
+    yield "**[ FINAL SYNTHESIS — LOCAL COUNCIL ]**\n"
+    yield "═" * 56 + "\n"
+
+    all_summary = ""
+    for cn in range(1, 4):
+        cr = all_cycle_responses.get(cn, {})
+        if cr:
+            all_summary += f"\n**Cycle {cn} ({CYCLE_LABELS[cn]}):**\n"
+            for n, r in cr.items():
+                all_summary += f"  [{n}]: {r[:250]}\n"
+    if hyperdrive_responses:
+        all_summary += "\n**Hyperdrive (C4):**\n"
+        for n, r in hyperdrive_responses.items():
+            all_summary += f"  [{n}]: {r[:250]}\n"
+
+    final_prompt = (
+        f"Question: {question}\n\n"
+        f"Full council report across all cycles:\n{all_summary}\n\n"
+        f"You are the constitutional council. You have seen every cycle. "
+        f"{'Consensus was reached.' if has_consensus else 'No consensus — a hyperdrive pass was run.'} "
+        f"Produce the final synthesis. "
+        f"If consensus: state the grounded answer with confidence. "
+        f"If no consensus: deliver a weighted report — which positions carry the most weight and why, "
+        f"based on your own judgment, not the numbers. "
+        f"End with a single declarative sentence that is the answer, or the honest acknowledgment "
+        f"that none exists yet. This is the final word."
+    )
+    final_text = ""
+    try:
+        for chunk in _call_ollama([{"role": "user", "content": final_prompt}]):
+            if chunk != RATE_SENTINEL:
+                yield chunk
+                final_text += chunk
+    except Exception:
+        pass
+
+    # ── Cursiv binary snapshot ────────────────────────────────────────────────
     yield "\n\n---\n**[ CURSIV BINARY SNAPSHOT ]**\n"
     yield "*Paste into Grok on X to decode*\n\n"
-    verdict = synthesis_text or list(responses.values())[-1]
+    verdict_src = final_text or (list(c3.values())[-1] if c3 else question)
+    cycle_label = "4-HYPERDRIVE" if not has_consensus else "3"
     payload = (
         f"CURSIV|COUNCIL|Q:{question[:80]}"
-        f"|AGENTS:{','.join(responses.keys())}"
-        f"|VERDICT:{verdict[:200]}"
+        f"|AGENTS:{','.join(n for n, _ in external)}"
+        f"|CYCLES:{cycle_label}"
+        f"|VERDICT:{verdict_src[:200]}"
         f"|SEED:4A57|v314"
     )
     yield f"```\n{_cursiv_encode(payload)}\n```\n"
-    yield f"\n*{len(responses)} provider(s) · SEED:4A57 · v314*\n"
+    yield f"\n*{len(external)} provider(s) · cycles:{cycle_label} · SEED:4A57 · v314*\n"
 
 
 def _is_online() -> bool:
