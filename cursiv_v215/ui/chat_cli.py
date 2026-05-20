@@ -2179,22 +2179,44 @@ def main() -> None:
                         "ukrainian": "Ukrainian", "farsi": "Persian (Farsi)",
                         "persian": "Persian (Farsi)", "tagalog": "Tagalog",
                     }
-                    _out_targets = [_lang_names.get(l.lower(), l.title()) for l in _out_langs]
-                    _out_label   = ", ".join(_out_targets)
-                    print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}English → {_out_label}{RESET}\n")
-                    _out_sys = (
-                        "You are a precise translation engine. "
-                        "Translate the user's text into each requested language. "
-                        "For each language output a header line exactly like:\n"
-                        "  ── [Language Name] ──\n"
-                        "followed immediately by the translation. "
-                        "Preserve the tone, meaning, and punctuation faithfully. "
-                        "Return translations only — no explanations, no preamble."
-                    )
-                    _out_user = (
-                        f"Text to translate:\n{_out_src}\n\n"
-                        f"Translate into: {', '.join(_out_targets)}"
-                    )
+                    # "every language", "all languages", "everything" → open-ended mode
+                    _raw_target_str = _into_match.group(1).strip().lower()
+                    _all_langs_mode = bool(re.search(
+                        r'\bever(y|ything)\b|\ball\b|\beverything\b|\bmaximum\b',
+                        _raw_target_str
+                    ))
+                    if _all_langs_mode:
+                        _out_label = "every language"
+                        print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}English → every language (labeled){RESET}\n")
+                        _out_sys = (
+                            "You are a translation engine with broad multilingual coverage. "
+                            "Translate the user's text into as many languages as you can — "
+                            "aim for at least 20 distinct languages including major world languages "
+                            "and regional languages. "
+                            "For each language output a header line exactly like:\n"
+                            "  ── [Language Name] ──\n"
+                            "followed immediately by the translation on the next line. "
+                            "Preserve the tone, meaning, and punctuation faithfully. "
+                            "Return translations only — no explanations, no preamble, no count."
+                        )
+                        _out_user = f"Translate into every language you can:\n{_out_src}"
+                    else:
+                        _out_targets = [_lang_names.get(l.lower(), l.title()) for l in _out_langs]
+                        _out_label   = ", ".join(_out_targets)
+                        print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}English → {_out_label}{RESET}\n")
+                        _out_sys = (
+                            "You are a precise translation engine. "
+                            "Translate the user's text into each requested language. "
+                            "For each language output a header line exactly like:\n"
+                            "  ── [Language Name] ──\n"
+                            "followed immediately by the translation. "
+                            "Preserve the tone, meaning, and punctuation faithfully. "
+                            "Return translations only — no explanations, no preamble."
+                        )
+                        _out_user = (
+                            f"Text to translate:\n{_out_src}\n\n"
+                            f"Translate into: {', '.join(_out_targets)}"
+                        )
                     _out_msgs = [
                         {"role": "system", "content": _out_sys},
                         {"role": "user",   "content": _out_user},
