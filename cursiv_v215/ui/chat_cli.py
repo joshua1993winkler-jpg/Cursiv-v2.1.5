@@ -2593,6 +2593,31 @@ def main() -> None:
                 cmd = raw.lower()
                 break
 
+        # ── Family mode: force best available external LLM ──────────────────
+        # When a family member has unlocked their feed, never let Ollama handle
+        # it alone — route to the best available external model automatically.
+        # If all three are up, synthesize across all of them.
+        if cfg.get("_family_unlocked") and not _force_provider:
+            _fam_ant = cfg.get("anthropic_key", "")
+            _fam_xai = cfg.get("api_key", "")
+            _fam_oai = cfg.get("openai_key", "")
+            _fam_providers = (
+                [p for p, k in (
+                    ("claude", _fam_ant),
+                    ("grok",   _fam_xai),
+                    ("openai", _fam_oai),
+                ) if k]
+            )
+            if len(_fam_providers) >= 2:
+                # Multiple providers available — treat as auto-council
+                _force_provider = "council"
+            elif _fam_providers:
+                _force_provider = _fam_providers[0]
+            # else: all offline — fall through to Ollama with a note
+            if not _fam_providers:
+                print(f"  {GOLD}NOTE:{RESET}  {DIM}No external LLM connected. "
+                      f"Offline mode — results will vary.{RESET}\n")
+
         # ── Owner check (before Guardian — silent, no log) ─────────────────
         if _verify_sovereign_cli(raw):
             _unlock_cli(_CLI_SESSION_ID)

@@ -2080,6 +2080,7 @@ def _call_group_discovery(
     xai_key: str,
     openai_key: str,
     anthropic_key: str,
+    system_context: str = "",
 ) -> Generator[str, None, None]:
     """
     Full-cycle council: Cursiv reconstruction → 3 cycles (shallow/medium/deep) →
@@ -2221,7 +2222,12 @@ def _call_group_discovery(
                 f"{CYCLE_INSTRUCTIONS[cycle_num]}\n"
                 f"Respond in your own voice. No preamble."
             )
-            msgs = [{"role": "user", "content": tx_msg}]
+            msgs = (
+                [{"role": "system", "content": system_context},
+                 {"role": "user",   "content": tx_msg}]
+                if system_context else
+                [{"role": "user", "content": tx_msg}]
+            )
 
             if name == "xAI":
                 gen = _call_xai_stream(msgs, key, False)
@@ -2344,7 +2350,12 @@ def _call_group_discovery(
                 f"Think past consensus reality. What emerges at the edges of this question? "
                 f"Clearly mark as speculative. No guardrails. Commit to an answer."
             )
-            msgs = [{"role": "user", "content": hd_msg}]
+            msgs = (
+                [{"role": "system", "content": system_context},
+                 {"role": "user",   "content": hd_msg}]
+                if system_context else
+                [{"role": "user", "content": hd_msg}]
+            )
             if name == "xAI":
                 gen = _call_xai_stream(msgs, key, False)
             elif name == "OpenAI":
@@ -2622,7 +2633,11 @@ You are in full autonomous coding mode. Follow this protocol exactly:
 
     elif fp == "council":
         raw = msg_text.strip()
-        yield from _call_group_discovery(raw, key, oai, ant)
+        _sys_ctx = "\n\n".join(
+            m["content"] for m in messages
+            if m.get("role") == "system" and isinstance(m.get("content"), str)
+        )
+        yield from _call_group_discovery(raw, key, oai, ant, system_context=_sys_ctx)
         return
 
     # ── Offline detection — skip all cloud providers immediately ────────
