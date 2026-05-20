@@ -566,59 +566,60 @@ def _print_owner_reveal(cfg: dict) -> None:
 
 def _input_prompt(cfg: dict) -> str:
     """
-    Print the bottom input box and return whatever the user types.
-    Uses prompt_toolkit when available — enables bracketed paste mode so
-    multiline pastes land as a single message rather than firing line-by-line.
-    Falls back to plain input() if prompt_toolkit is not installed.
+    Full-width gold separator with embedded status, then a clean Eye of Horus prompt.
+    Claude Code-style: no heavy box borders, status at a glance, full terminal width.
+    Bracketed paste via prompt_toolkit when available.
     """
-    w     = _cols()
-    inner = w - 6
+    w = _cols()
 
-    # Live status — always visible here regardless of scroll position
+    # Compact status chips
     xai_s  = _api_chip("xAI",    cfg.get("api_key", ""),       cfg.get("xai_live"))
     ant_s  = _api_chip("Claude", cfg.get("anthropic_key", ""), cfg.get("claude_live"))
-    fa_s   = (f"{GREEN}files:ON{RESET}"  if cfg.get("file_access")  else f"{RED}files:OFF{RESET}")
+    fa_s   = (f"{GREEN}files:ON{RESET}"  if cfg.get("file_access") else f"{RED}files:OFF{RESET}")
     mode_s = (f"{RED}CONFIRM{RESET}"     if cfg["confirm_mode"] == "confirm" else f"{GREEN}AUTO{RESET}")
-    ov_s   = (f"  {LAPIS}⚖OVERSEER{RESET}" if cfg.get("overseer_mode") else "")
+    ov_s   = (f"  {LAPIS}⚖{RESET}" if cfg.get("overseer_mode") else "")
 
-    tpm_part = ""
+    # TPM bar (compact 6-block)
+    tpm_chip = ""
     try:
         from cursiv_v215.core.rate_limiter import limiter as _rl
-        used    = _rl.current_tpm()
-        target  = _rl.target
-        pct     = min(used / max(target, 1), 1.0)
-        filled  = int(pct * 8)
-        bar     = "█" * filled + "░" * (8 - filled)
-        tpm_col = GREEN if pct < 0.70 else (GOLD if pct < 0.90 else RED)
-        tpm_part = f"  {SILV2}·{RESET}  {tpm_col}{bar}{RESET}  {SILV2}{used // 1000}k/{target // 1000}k{RESET}"
+        used   = _rl.current_tpm()
+        target = _rl.target
+        pct    = min(used / max(target, 1), 1.0)
+        filled = int(pct * 6)
+        col    = GREEN if pct < 0.70 else (GOLD if pct < 0.90 else RED)
+        tpm_chip = f"  {col}{'█' * filled}{'░' * (6 - filled)}{RESET}  {SILV2}{used // 1000}k{RESET}"
     except Exception:
         pass
 
-    ff = cfg.get("funforge_session")
+    # FunForge timer
+    ff   = cfg.get("funforge_session")
     ff_s = ""
     if ff and not ff.closed:
-        if ff.expired:
-            ff_s = f"  {RED}⬡FORGE:DONE{RESET}"
-        else:
-            ff_s = f"  {GOLD}⬡FORGE:{ff.time_display()}{RESET}"
+        ff_s = (f"  {RED}⬡DONE{RESET}" if ff.expired
+                else f"  {GOLD}⬡{ff.time_display()}{RESET}")
 
-    hint = _pad(
-        f"  {xai_s}  {ant_s}  {fa_s}  mode:{mode_s}{ov_s}{ff_s}{tpm_part}  {SILV2}·  Ctrl+C{RESET}",
-        inner,
+    # Status string centered in the full-width gold separator
+    # 𓂀 (Eye of Horus) anchors the left of the status block
+    status = (
+        f" {GOLD}𓂀{RESET}  "
+        f"{xai_s}  {ant_s}  {fa_s}  {mode_s}"
+        f"{ov_s}{ff_s}{tpm_chip}  {SILV2}·{RESET} "
     )
+    sw     = _vlen(status)
+    remain = max(0, w - sw)
+    lw     = remain // 2
+    rw     = remain - lw
+    sep    = f"{LGOLD}{'─' * lw}{RESET}{status}{LGOLD}{'─' * rw}{RESET}"
 
-    print(f"\n  {LAPIS}╭{'─' * inner}╮{RESET}")
-    print(f"  {LAPIS}│{RESET}{hint}{LAPIS}│{RESET}")
-    print(f"  {LAPIS}├{'─' * inner}┤{RESET}")
+    print(f"\n{sep}")
 
-    # 𓂀 = Eye of Horus (U+13080). Requires a hieroglyphs font (e.g. Noto Sans
-    # Egyptian Hieroglyphs or Segoe UI Historic). Shows as □ if font is absent —
-    # swap to ⊙ in that case.
-    prefix_ansi = f"  {LAPIS}│{RESET}  {GOLD}𓂀{RESET}  "
+    # 𓂀 = Eye of Horus (U+13080). Requires Noto Sans Egyptian Hieroglyphs or
+    # Segoe UI Historic — shows as □ on systems without the font; swap to ⊙.
+    prefix_ansi = f"{GOLD}𓂀{RESET}  "
 
     try:
         if _HAS_PT:
-            # prompt_toolkit handles bracketed paste — multiline paste = one block
             raw = _pt_prompt(_PT_ANSI(prefix_ansi))
         else:
             sys.stdout.write(prefix_ansi)
@@ -627,7 +628,6 @@ def _input_prompt(cfg: dict) -> str:
     except (EOFError, KeyboardInterrupt):
         raise KeyboardInterrupt
 
-    print(f"  {LAPIS}╰{'─' * inner}╯{RESET}")
     return raw.strip()
 
 
@@ -2134,11 +2134,7 @@ def main() -> None:
                 cfg["claude_live"] = False
             elif _force_provider == "claude" and _fr and "[No Anthropic" not in _fr and "[Claude error" not in _fr:
                 cfg["claude_live"] = True
-            # Repaint header only when live status actually changed
-            if (cfg.get("xai_live") != _old_xai
-                    or cfg.get("openai_live") != _old_openai
-                    or cfg.get("claude_live") != _old_claude):
-                _print_header(cfg)
+            # Status change is reflected automatically in the next input separator
 
         # ── Handle pending write ─────────────────────────────────────────
         if pending_payload is not None:
