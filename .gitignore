@@ -26,3 +26,12 @@ installer/Output/
 # OS
 .DS_Store
 Thumbs.db
+
+# Cursiv export packs
+*.cursivpack
+
+# Dev reports
+reports/
+
+# Claude Code local settings
+.claude/
