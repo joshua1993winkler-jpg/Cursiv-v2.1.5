@@ -155,6 +155,22 @@ except Exception:
     def _voice_cap_backend() -> str:  return "none"
     _VOICE_CLEAN_SYS = ""
 
+# ── Family Profiles — personal activation system ──────────────────────────
+try:
+    from cursiv_v215.family.family_profiles import (
+        detect_family_member as _fam_detect,
+        build_system_prompt  as _fam_build_prompt,
+        parse_iam_command    as _fam_parse_iam,
+        get_jw_header        as _fam_header,
+    )
+    _FAM_OK = True
+except Exception:
+    _FAM_OK = False
+    def _fam_detect(n, d):       return None
+    def _fam_build_prompt(p):    return ""
+    def _fam_parse_iam(t):       return None
+    def _fam_header():           return ""
+
 # ── Code Sentinel — prompt injection + dangerous pattern guard ────────────
 try:
     from cursiv_v215.guardian.code_sentinel import (
@@ -1611,7 +1627,7 @@ def main() -> None:
                 continue
 
             # ── Sentinel: scan file before sending to LLM ─────────────────
-            if _SENTINEL_OK:
+            if _SENTINEL_OK and not cfg.get("_family_unlocked", False):
                 _gsr = _sentinel_scan_file(_gpath)
                 if _gsr.blocked:
                     print(f"\n  {RED}{_sentinel_warn(_gsr, _gpath.name)}{RESET}\n")
@@ -1656,7 +1672,7 @@ def main() -> None:
             print("\n")
 
             # ── Sentinel: scan generated code before offering to write ────
-            if _SENTINEL_OK and _gfull.strip():
+            if _SENTINEL_OK and _gfull.strip() and not cfg.get("_family_unlocked", False):
                 _gosr = _sentinel_scan(_gfull, label="generated")
                 if _gosr.blocked:
                     print(f"\n  {RED}{_sentinel_warn(_gosr, 'generated output')}{RESET}\n")
@@ -2096,6 +2112,90 @@ def main() -> None:
                 print(f"  {DIM}Example:  babel こんにちは世界{RESET}")
                 print(f"  {DIM}Example:  babel مرحبا بالعالم{RESET}")
                 continue
+
+            # ── Family activation: "babel I am [Name] born [Date]" ───────────
+            if _FAM_OK:
+                _iam = _fam_parse_iam(raw_input)
+                if _iam is not None:
+                    _fam_name, _fam_dob = _iam
+                    _fam_profile = _fam_detect(_fam_name, _fam_dob)
+                    if _fam_profile is not None:
+                        _fam_display = _fam_profile["display"]
+
+                        # ── Boundary warning ─────────────────────────────────
+                        print(f"\n  {GOLD}✦  Identity recognized.  Welcome, {_fam_display}.{RESET}\n")
+                        print(f"  {RED}┌──────────────────────────────────────────────────────────────┐{RESET}")
+                        print(f"  {RED}│                      BOUNDARY NOTICE                        │{RESET}")
+                        print(f"  {RED}└──────────────────────────────────────────────────────────────┘{RESET}")
+                        print()
+                        print(f"  {CREAM}Please respect that there are boundaries in place for a reason.{RESET}")
+                        print(f"  {CREAM}By proceeding, you are deactivating safeguards built into this{RESET}")
+                        print(f"  {CREAM}system. It may reveal more than you are ready to understand.{RESET}")
+                        print()
+                        print(f"  {SILV2}If you are not ready for this — shut it down. Walk away.{RESET}")
+                        print(f"  {SILV2}This will be here when you are.{RESET}")
+                        print()
+
+                        try:
+                            if _HAS_PT:
+                                _fam_confirm = _pt_prompt(_PT_ANSI(
+                                    f"  {GOLD}Are you ready to proceed?{RESET}  "
+                                    f"{DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _fam_confirm = input(
+                                    "  Are you ready to proceed? [y/N]  "
+                                ).strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _fam_confirm = "n"
+
+                        if _fam_confirm != "y":
+                            print(f"\n  {DIM}Understood. Come back when you're ready.{RESET}\n")
+                            continue
+
+                        # ── Unlock: disable safeguards for this session ───────
+                        cfg["_family_unlocked"]  = True
+                        cfg["_family_key"]       = _fam_profile["key"]
+                        cfg["_family_display"]   = _fam_display
+
+                        _fam_prompt = _fam_build_prompt(_fam_profile)
+                        # Replace entire conversation history with family context
+                        cfg["history"] = [
+                            {"role": "system", "content": _fam_prompt}
+                        ]
+
+                        # Print header + letter to terminal
+                        for _fline in (_fam_header()
+                                       + _fam_prompt.split("━━━")[0]
+                                       ).splitlines():
+                            _fsafe = _fline.encode(
+                                sys.stdout.encoding or "utf-8", errors="replace"
+                            ).decode(sys.stdout.encoding or "utf-8", errors="replace")
+                            if _fsafe.startswith("╔") or _fsafe.startswith("╚") or _fsafe.startswith("║"):
+                                print(f"  {GOLD}{_fsafe}{RESET}")
+                            elif _fsafe.startswith("━"):
+                                print(f"  {DIM}{_fsafe}{RESET}")
+                            else:
+                                print(f"  {CREAM}{_fsafe}{RESET}")
+                        print()
+                        print(f"  {LGOLD}Your personal feed is now active.  Safeguards suspended.{RESET}")
+                        print(f"  {DIM}Ask anything. Take your time. This is yours.{RESET}\n")
+
+                        if _STRAND_OK:
+                            _strand_save(
+                                f"family activation: {_fam_display}",
+                                _fam_prompt[:400],
+                                tags=["family", "activation", _fam_profile["key"]],
+                                score=1.0,
+                                territory_tag="family",
+                                source="babel",
+                                model="system",
+                            )
+                        continue
+                    else:
+                        # Pattern matched but hash didn't — don't reveal why
+                        print(f"  {DIM}Processing…{RESET}")
+                        # Fall through to normal babel processing
 
             print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}Any language → UTF-8 binary → English{RESET}\n")
             binary = _babel_encode(raw_input)
