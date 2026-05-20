@@ -2225,7 +2225,7 @@ def main() -> None:
                         # ── Boundary warning ─────────────────────────────────
                         print(f"\n  {GOLD}✦  Access granted.  Welcome, {_fam_display}.{RESET}\n")
                         print(f"  {RED}┌──────────────────────────────────────────────────────────────┐{RESET}")
-                        print(f"  {RED}│                      BOUNDARY NOTICE                        │{RESET}")
+                        print(f"  {RED}│                      BOUNDARY NOTICE                         │{RESET}")
                         print(f"  {RED}└──────────────────────────────────────────────────────────────┘{RESET}")
                         print()
                         print(f"  {CREAM}Please respect that there are boundaries in place for a reason.{RESET}")
@@ -2468,7 +2468,7 @@ def main() -> None:
 
             # ── Authenticated ─────────────────────────────────────────────
             print(f"\n  {GOLD}╔══════════════════════════════════════════════════════════╗{RESET}")
-            print(f"  {GOLD}║        ⬡  WINKLER LEGACY GUARDIAN                       ║{RESET}")
+            print(f"  {GOLD}║        ⬡  WINKLER LEGACY GUARDIAN                        ║{RESET}")
             print(f"  {GOLD}╚══════════════════════════════════════════════════════════╝{RESET}")
             print()
             print(f"  {CREAM}Welcome, {_leg_display}.{RESET}")
@@ -2590,7 +2590,7 @@ def main() -> None:
                     # Print warning + letter
                     print()
                     print(f"  {RED}┌──────────────────────────────────────────────────────────────┐{RESET}")
-                    print(f"  {RED}│                      LEGACY NOTICE                          │{RESET}")
+                    print(f"  {RED}│                      LEGACY NOTICE                           │{RESET}")
                     print(f"  {RED}└──────────────────────────────────────────────────────────────┘{RESET}")
                     print()
                     print(f"  {CREAM}This is not time-travel in the novelty sense.{RESET}")

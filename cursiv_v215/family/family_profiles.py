@@ -138,8 +138,8 @@ _STORED_NAMES: dict[str, str] = {
 # ── The Transmission Header ───────────────────────────────────────────────────
 _JW_HEADER = """\
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║       IMPORT FROM JOSHUA WINKLER — 5/20/2026 · 4:30 A.M.                  ║
-║       FRUITLAND PARK, FLORIDA                                               ║
+║       IMPORT FROM JOSHUA WINKLER — 5/20/2026 · 4:30 A.M.                     ║
+║       FRUITLAND PARK, FLORIDA                                                ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 This was created at the time stated above. It is not a real-time transmission
