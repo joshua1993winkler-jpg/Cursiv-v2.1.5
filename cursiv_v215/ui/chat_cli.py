@@ -183,6 +183,34 @@ except Exception:
     def _fam_pin_valid(p):        return False
     _FAM_PIN_CHARS = "! @ # $ % ^ & * ~ - + = ? /"
 
+# ── Legacy Store — family letter vault ───────────────────────────────────
+try:
+    from cursiv_v215.family.legacy_store import (
+        letters_waiting_for  as _legacy_letters_for,
+        letters_written_by   as _legacy_letters_by,
+        get_letter_content   as _legacy_get_content,
+        get_letter_entry     as _legacy_get_entry,
+        save_letter          as _legacy_save,
+        rewrite_letter       as _legacy_rewrite,
+        delete_letter        as _legacy_delete,
+        make_letter_pin_hash as _legacy_make_pin_hash,
+        verify_letter_pin    as _legacy_verify_letter_pin,
+        name_to_key          as _legacy_name_to_key,
+    )
+    _LEGACY_OK = True
+except Exception:
+    _LEGACY_OK = False
+    def _legacy_letters_for(k):                return []
+    def _legacy_letters_by(k):                 return []
+    def _legacy_get_content(i):                return None
+    def _legacy_get_entry(i):                  return None
+    def _legacy_save(**kw):                    return ""
+    def _legacy_rewrite(i, c):                 return False
+    def _legacy_delete(i):                     return False
+    def _legacy_make_pin_hash(p):              return ""
+    def _legacy_verify_letter_pin(i, p):       return False
+    def _legacy_name_to_key(n):                return n.lower().split()[0]
+
 # ── Code Sentinel — prompt injection + dangerous pattern guard ────────────
 try:
     from cursiv_v215.guardian.code_sentinel import (
@@ -2262,6 +2290,17 @@ def main() -> None:
                                   f"You're good. Don't say I didn't warn ya.{RESET}")
                         print()
 
+                        # ── You've got mail ───────────────────────────────
+                        if _LEGACY_OK:
+                            _mail_waiting = _legacy_letters_for(_fam_profile["key"])
+                            if _mail_waiting:
+                                _mc = len(_mail_waiting)
+                                print(f"  {GOLD}⬡  You've got mail.{RESET}  "
+                                      f"{DIM}{_mc} letter{'s' if _mc != 1 else ''} waiting for you.{RESET}")
+                                print(f"  {DIM}When you're ready:{RESET}  "
+                                      f"{LGOLD}legacy I am [your name], [your date], [your code]{RESET}")
+                                print()
+
                         if _STRAND_OK:
                             _strand_save(
                                 f"family activation: {_fam_display}",
@@ -2349,6 +2388,543 @@ def main() -> None:
                 full += chunk
             print("\n")
             # Babel runs as a one-shot tool — not added to main conversation history
+            continue
+
+        # ── Legacy Guardian — family letter vault ────────────────────────────
+        elif cmd.startswith("legacy") and (cmd == "legacy" or cmd[6] in (" ", ":")):
+            _leg_raw_input = raw[7:].strip() if len(raw) > 7 else ""
+            if not _leg_raw_input or not _FAM_OK or not _LEGACY_OK:
+                print(f"  {DIM}Processing…{RESET}")
+                continue
+
+            _leg_parsed = _fam_parse_iam(_leg_raw_input)
+            if not _leg_parsed:
+                print(f"  {DIM}Processing…{RESET}")
+                continue
+
+            _leg_name, _leg_dob, _leg_pin = _leg_parsed
+            _leg_profile = _fam_detect(_leg_name, _leg_dob)
+            if not _leg_profile:
+                print(f"  {DIM}Processing…{RESET}")
+                continue
+
+            _leg_key     = _leg_profile["key"]
+            _leg_display = _leg_profile["display"]
+
+            # Require PIN (must have set one via babel first)
+            if not _fam_pin_is_set(_leg_key):
+                print(f"  {DIM}Processing…{RESET}")
+                continue
+
+            if not _leg_pin:
+                try:
+                    if _HAS_PT:
+                        _leg_pin = _pt_prompt(_PT_ANSI(
+                            f"  {GOLD}Code:{RESET}  "
+                        )).strip()
+                    else:
+                        _leg_pin = input("  Code:  ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    _leg_pin = ""
+
+            if not _fam_verify_pin(_leg_key, _leg_pin or ""):
+                print(f"  {DIM}Processing…{RESET}")
+                continue
+
+            # ── Authenticated ─────────────────────────────────────────────
+            print(f"\n  {GOLD}╔══════════════════════════════════════════════════════════╗{RESET}")
+            print(f"  {GOLD}║        ⬡  WINKLER LEGACY GUARDIAN                       ║{RESET}")
+            print(f"  {GOLD}╚══════════════════════════════════════════════════════════╝{RESET}")
+            print()
+            print(f"  {CREAM}Welcome, {_leg_display}.{RESET}")
+            print()
+            print(f"  {SILV2}This is not time-travel in the novelty sense.{RESET}")
+            print(f"  {SILV2}But it is the closest we can get.{RESET}")
+            print(f"  {SILV2}Please take this seriously.{RESET}")
+            print(f"  {DIM}The responses may vary, but the intent is sound.{RESET}")
+            print(f"  {DIM}Reason through what you see for yourself.{RESET}")
+            print(f"  {DIM}Do not let the AI tell you what to think.{RESET}")
+            print()
+
+            _leg_inbox  = _legacy_letters_for(_leg_key)
+            _leg_outbox = _legacy_letters_by(_leg_key)
+
+            if _leg_inbox:
+                print(f"  {LGOLD}Letters waiting for you  ({len(_leg_inbox)}):{RESET}")
+                for _li, _le in enumerate(_leg_inbox, 1):
+                    _lfd = _le.get("from_display", _le.get("from_key", "?"))
+                    _lsb = _le.get("subject", "(no subject)")
+                    _ldt = _le.get("written", "")[:10]
+                    _rev = f"  {DIM}(revised){RESET}" if _le.get("revised") else ""
+                    print(f"  {GOLD}{_li}.{RESET}  {CREAM}from {_lfd}{RESET}  "
+                          f"{DIM}· {_lsb} · {_ldt}{RESET}{_rev}")
+                print()
+            else:
+                print(f"  {DIM}No letters waiting for you yet.{RESET}")
+                print()
+
+            if _leg_outbox:
+                print(f"  {LGOLD}Letters you've written  ({len(_leg_outbox)}):{RESET}")
+                for _li, _le in enumerate(_leg_outbox, 1):
+                    _lfd = _le.get("for_display", _le.get("for_key", "?"))
+                    _lsb = _le.get("subject", "(no subject)")
+                    _ldt = _le.get("written", "")[:10]
+                    print(f"  {GOLD}{_li}.{RESET}  {CREAM}for {_lfd}{RESET}  "
+                          f"{DIM}· {_lsb} · {_ldt}{RESET}")
+                print()
+
+            print(f"  {DIM}Commands:{RESET}  "
+                  f"{LGOLD}read <n>{RESET}  "
+                  f"{LGOLD}write{RESET}  "
+                  f"{LGOLD}my <n> read/edit/delete{RESET}  "
+                  f"{LGOLD}done{RESET}")
+            print()
+
+            # ── Legacy mini-loop ──────────────────────────────────────────
+            while True:
+                try:
+                    if _HAS_PT:
+                        _lcmd_raw = _pt_prompt(_PT_ANSI(
+                            f"  {GOLD}⬡ LEGACY{RESET}  {SILV2}{_leg_display.split()[0]}{RESET}  {GOLD}❯{RESET}  "
+                        )).strip()
+                    else:
+                        _lcmd_raw = input(f"  ⬡ LEGACY  {_leg_display.split()[0]}  ❯  ").strip()
+                except (KeyboardInterrupt, EOFError):
+                    print(f"\n  {DIM}Legacy Guardian — session closed.{RESET}\n")
+                    break
+
+                if not _lcmd_raw:
+                    continue
+                _lcmd = _lcmd_raw.lower()
+
+                if _lcmd in ("done", "exit", "quit", "back", "close"):
+                    print(f"\n  {DIM}Legacy Guardian — session closed.{RESET}\n")
+                    break
+
+                # ── read <n> — open inbox letter ──────────────────────────
+                elif _lcmd.startswith("read"):
+                    _rn = _lcmd[4:].strip()
+                    if not _rn.isdigit():
+                        print(f"  {DIM}Usage: read <number>{RESET}")
+                        continue
+                    _ri = int(_rn) - 1
+                    if not (0 <= _ri < len(_leg_inbox)):
+                        print(f"  {DIM}No letter at that number.{RESET}")
+                        continue
+                    _le = _leg_inbox[_ri]
+                    _lfd = _le.get("from_display", "?")
+
+                    # 1 confirmation
+                    try:
+                        if _HAS_PT:
+                            _rc = _pt_prompt(_PT_ANSI(
+                                f"  {GOLD}Open letter from {_lfd}?{RESET}  {DIM}[y/N]{RESET}  "
+                            )).strip().lower()
+                        else:
+                            _rc = input(f"  Open letter from {_lfd}? [y/N]  ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        _rc = "n"
+
+                    if _rc != "y":
+                        print(f"  {DIM}It'll be here when you're ready.{RESET}")
+                        continue
+
+                    _lc = _legacy_get_content(_le["id"])
+                    if not _lc:
+                        print(f"  {RED}Letter file not found.{RESET}")
+                        continue
+
+                    # Print warning + letter
+                    print()
+                    print(f"  {RED}┌──────────────────────────────────────────────────────────────┐{RESET}")
+                    print(f"  {RED}│                      LEGACY NOTICE                          │{RESET}")
+                    print(f"  {RED}└──────────────────────────────────────────────────────────────┘{RESET}")
+                    print()
+                    print(f"  {CREAM}This is not time-travel in the novelty sense.{RESET}")
+                    print(f"  {CREAM}But it is the closest we can get.{RESET}")
+                    print(f"  {CREAM}Please take this seriously.{RESET}")
+                    print()
+                    print(f"  {SILV2}The responses may vary, but the intent is sound.{RESET}")
+                    print(f"  {SILV2}Reason through what you see for yourself.{RESET}")
+                    print(f"  {SILV2}Do not let the AI tell you what to think.{RESET}")
+                    print()
+                    print(f"  {GOLD}{'━' * 62}{RESET}")
+                    print(f"  {LGOLD}Letter from {_lfd}{RESET}  {DIM}· {_le.get('subject','')}{RESET}")
+                    _lwr = _le.get("written", "")[:10]
+                    _lrv = _le.get("revised", "")
+                    _lrv_str = f"  {DIM}revised {_lrv[:10]}{RESET}" if _lrv else ""
+                    print(f"  {DIM}Written: {_lwr}{RESET}{_lrv_str}")
+                    print(f"  {GOLD}{'━' * 62}{RESET}")
+                    print()
+                    for _ll in _lc.splitlines():
+                        _ls = _ll.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                        print(f"  {CREAM}{_ls}{RESET}")
+                    print()
+                    print(f"  {GOLD}{'━' * 62}{RESET}")
+                    print()
+
+                    # Companion offer
+                    _lhas_ext = (cfg.get("api_key") or cfg.get("openai_key")
+                                 or cfg.get("anthropic_key"))
+                    if _lhas_ext:
+                        print(f"  {DIM}The council is here with you if you need it.{RESET}")
+                        print(f"  {DIM}Ask anything. They will not speak as the author.{RESET}")
+                        print(f"  {DIM}They are companions only. Type  done  when ready.{RESET}")
+                        print()
+
+                        _lconv: list[dict] = [{
+                            "role": "system",
+                            "content": (
+                                f"{_leg_display} has just read a personal legacy letter written for them "
+                                f"by {_lfd}. The letter:\n\n{_lc}\n\n"
+                                f"Your role: be a warm, honest companion helping them process what they've "
+                                f"read. You are NOT {_lfd}. Do not speak as {_lfd}, do not roleplay as "
+                                f"them, do not claim to channel them. If asked, decline clearly but gently. "
+                                f"You are walking alongside this person — present, real, honest. "
+                                f"Do not tell them what to think or feel. Ask. Listen. Reflect."
+                            ),
+                        }]
+
+                        while True:
+                            try:
+                                if _HAS_PT:
+                                    _lq = _pt_prompt(_PT_ANSI(
+                                        f"  {GOLD}❯{RESET}  "
+                                    )).strip()
+                                else:
+                                    _lq = input("  ❯  ").strip()
+                            except (KeyboardInterrupt, EOFError):
+                                break
+
+                            if not _lq or _lq.lower() in ("done", "exit", "back", "enough", "close"):
+                                print(f"\n  {DIM}Take your time. Come back whenever you need.{RESET}\n")
+                                break
+
+                            _lconv.append({"role": "user", "content": _lq})
+                            sys.stdout.write(f"\n  {GOLD}✦{RESET}  ")
+                            sys.stdout.flush()
+                            _lr = ""
+                            _l_ant = cfg.get("anthropic_key", "")
+                            _l_xai = cfg.get("api_key", "")
+                            _l_oai = cfg.get("openai_key", "")
+                            if _l_ant:
+                                _lg = _call_claude_direct(_lconv, _l_ant)
+                            elif _l_xai:
+                                _lg = _call_xai_stream(_lconv, _l_xai, False)
+                            elif _l_oai:
+                                _lg = _call_openai_direct(_lconv, _l_oai)
+                            else:
+                                _lg = _call_ollama(_lconv)
+                            for _lchk in _lg:
+                                if _lchk != RATE_SENTINEL:
+                                    _ls2 = _lchk.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                                    sys.stdout.write(f"{GOLD}{_ls2}{RESET}")
+                                    sys.stdout.flush()
+                                    _lr += _lchk
+                            print("\n")
+                            if _lr:
+                                _lconv.append({"role": "assistant", "content": _lr})
+
+                # ── write — compose a new letter ──────────────────────────
+                elif _lcmd == "write":
+                    print(f"\n  {LGOLD}⬡ Write a Legacy Letter{RESET}\n")
+                    try:
+                        if _HAS_PT:
+                            _wfor = _pt_prompt(_PT_ANSI(f"  {GOLD}Who is this letter for?{RESET}  ")).strip()
+                        else:
+                            _wfor = input("  Who is this letter for?  ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        print(f"  {DIM}Cancelled.{RESET}")
+                        continue
+
+                    if not _wfor:
+                        print(f"  {DIM}Cancelled.{RESET}")
+                        continue
+
+                    _wfor_key     = _legacy_name_to_key(_wfor)
+                    _wfor_display = _wfor.strip()
+
+                    try:
+                        if _HAS_PT:
+                            _wsubj = _pt_prompt(_PT_ANSI(
+                                f"  {GOLD}Subject or occasion (press Enter to skip):{RESET}  "
+                            )).strip()
+                        else:
+                            _wsubj = input("  Subject or occasion (press Enter to skip):  ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        _wsubj = ""
+
+                    print()
+                    print(f"  {DIM}Type your letter below.{RESET}")
+                    print(f"  {DIM}When you're done, type  END  on its own line.{RESET}")
+                    print(f"  {DIM}Take your time. This is yours.{RESET}")
+                    print()
+
+                    _wlines: list[str] = []
+                    while True:
+                        try:
+                            _wl = input("")
+                        except (EOFError, KeyboardInterrupt):
+                            break
+                        if _wl.strip().upper() == "END":
+                            break
+                        _wlines.append(_wl)
+
+                    _wraw = "\n".join(_wlines).strip()
+                    if not _wraw:
+                        print(f"  {DIM}Nothing written. Cancelled.{RESET}")
+                        continue
+
+                    # AI polish offer
+                    print()
+                    try:
+                        if _HAS_PT:
+                            _wpol = _pt_prompt(_PT_ANSI(
+                                f"  {GOLD}Want AI to help polish this? Keeps your voice.{RESET}  {DIM}[y/N]{RESET}  "
+                            )).strip().lower()
+                        else:
+                            _wpol = input("  Want AI to help polish this? [y/N]  ").strip().lower()
+                    except (EOFError, KeyboardInterrupt):
+                        _wpol = "n"
+
+                    _wfinal = _wraw
+                    if _wpol == "y":
+                        _wpm = [
+                            {"role": "system", "content": (
+                                f"You are helping {_leg_display} polish a personal letter written for "
+                                f"{_wfor_display}. Make the words flow better while keeping the author's "
+                                f"exact voice, style, and meaning. Do not add sentiment that isn't there. "
+                                f"Do not change what they are saying — only how smoothly it reads. "
+                                f"Return ONLY the polished letter. No preamble. No explanation."
+                            )},
+                            {"role": "user", "content": _wraw},
+                        ]
+                        print(f"\n  {DIM}Polishing…{RESET}\n")
+                        _wp_out = ""
+                        _wp_ant = cfg.get("anthropic_key", "")
+                        _wp_xai = cfg.get("api_key", "")
+                        _wp_oai = cfg.get("openai_key", "")
+                        if _wp_ant:
+                            _wpg = _call_claude_direct(_wpm, _wp_ant)
+                        elif _wp_xai:
+                            _wpg = _call_xai_stream(_wpm, _wp_xai, False)
+                        elif _wp_oai:
+                            _wpg = _call_openai_direct(_wpm, _wp_oai)
+                        else:
+                            _wpg = _call_ollama(_wpm)
+                        for _wpc in _wpg:
+                            if _wpc != RATE_SENTINEL:
+                                _wps = _wpc.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                                sys.stdout.write(f"{CREAM}{_wps}{RESET}")
+                                sys.stdout.flush()
+                                _wp_out += _wpc
+                        print("\n")
+                        if _wp_out.strip():
+                            try:
+                                if _HAS_PT:
+                                    _wuse = _pt_prompt(_PT_ANSI(
+                                        f"  {GOLD}Use this version?{RESET}  {DIM}[y/N — N keeps your original]{RESET}  "
+                                    )).strip().lower()
+                                else:
+                                    _wuse = input("  Use this version? [y/N]  ").strip().lower()
+                            except (EOFError, KeyboardInterrupt):
+                                _wuse = "n"
+                            if _wuse == "y":
+                                _wfinal = _wp_out.strip()
+
+                    # Access type
+                    print()
+                    print(f"  {DIM}Access: uses {_wfor_display}'s system credentials by default.{RESET}")
+                    print(f"  {DIM}Or set a letter-specific code to share with them directly.{RESET}")
+                    print(f"  {DIM}Press Enter to use system credentials.{RESET}")
+                    try:
+                        if _HAS_PT:
+                            _wacc = _pt_prompt(_PT_ANSI(
+                                f"  {GOLD}Custom letter code (or Enter to skip):{RESET}  "
+                            )).strip()
+                        else:
+                            _wacc = input("  Custom letter code (or Enter to skip):  ").strip()
+                    except (EOFError, KeyboardInterrupt):
+                        _wacc = ""
+
+                    if _wacc and _fam_pin_valid(_wacc):
+                        _wacc_type = "letter_pin"
+                        _wacc_hash = _legacy_make_pin_hash(_wacc)
+                    else:
+                        _wacc_type = "babel_pin"
+                        _wacc_hash = ""
+
+                    _new_lid = _legacy_save(
+                        from_key     = _leg_key,
+                        from_display = _leg_display,
+                        for_key      = _wfor_key,
+                        for_display  = _wfor_display,
+                        subject      = _wsubj,
+                        content      = _wfinal,
+                        access_type  = _wacc_type,
+                        access_hash  = _wacc_hash,
+                    )
+                    print(f"\n  {GREEN}✦ Letter saved.{RESET}  {DIM}ID: {_new_lid}{RESET}")
+                    if _wacc_type == "letter_pin":
+                        print(f"  {GOLD}Code set. Share it with {_wfor_display} directly.{RESET}")
+                    print()
+                    _leg_outbox = _legacy_letters_by(_leg_key)
+
+                # ── my <n> read / edit / delete ───────────────────────────
+                elif _lcmd.startswith("my "):
+                    _mparts = _lcmd[3:].strip().split()
+                    if len(_mparts) < 2 or not _mparts[0].isdigit():
+                        print(f"  {DIM}Usage: my <number> read | edit | delete{RESET}")
+                        continue
+                    _mi     = int(_mparts[0]) - 1
+                    _mact   = _mparts[1]
+                    if not (0 <= _mi < len(_leg_outbox)):
+                        print(f"  {DIM}No letter at that number.{RESET}")
+                        continue
+                    _me     = _leg_outbox[_mi]
+                    _mid    = _me["id"]
+                    _mford  = _me.get("for_display", "?")
+                    _msubj  = _me.get("subject", "?")
+                    _mdate  = _me.get("written", "")[:10]
+
+                    if _mact == "read":
+                        # 1 confirmation
+                        try:
+                            if _HAS_PT:
+                                _mc1 = _pt_prompt(_PT_ANSI(
+                                    f"  {GOLD}Re-read your letter for {_mford}?{RESET}  {DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _mc1 = input(f"  Re-read your letter for {_mford}? [y/N]  ").strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _mc1 = "n"
+                        if _mc1 != "y":
+                            continue
+                        _mc = _legacy_get_content(_mid)
+                        if not _mc:
+                            print(f"  {RED}Letter file not found.{RESET}")
+                            continue
+                        print()
+                        print(f"  {GOLD}{'━' * 62}{RESET}")
+                        print(f"  {LGOLD}Your letter for {_mford}{RESET}  {DIM}· {_msubj}{RESET}")
+                        print(f"  {GOLD}{'━' * 62}{RESET}")
+                        print()
+                        for _ml in _mc.splitlines():
+                            _mls = _ml.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                            print(f"  {CREAM}{_mls}{RESET}")
+                        print()
+                        print(f"  {GOLD}{'━' * 62}{RESET}")
+                        print()
+
+                    elif _mact == "edit":
+                        # 2 confirmations
+                        try:
+                            if _HAS_PT:
+                                _me1 = _pt_prompt(_PT_ANSI(
+                                    f"  {GOLD}Rewrite letter for {_mford}? Original will be replaced.{RESET}  {DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _me1 = input(f"  Rewrite letter for {_mford}? [y/N]  ").strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _me1 = "n"
+                        if _me1 != "y":
+                            continue
+                        try:
+                            if _HAS_PT:
+                                _me2 = _pt_prompt(_PT_ANSI(
+                                    f"  {RED}This cannot be undone. Are you certain?{RESET}  {DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _me2 = input("  This cannot be undone. Are you certain? [y/N]  ").strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _me2 = "n"
+                        if _me2 != "y":
+                            print(f"  {DIM}Edit cancelled.{RESET}")
+                            continue
+                        print()
+                        print(f"  {DIM}Type your revised letter. Type  END  on its own line when done.{RESET}")
+                        print()
+                        _elines: list[str] = []
+                        while True:
+                            try:
+                                _el = input("")
+                            except (EOFError, KeyboardInterrupt):
+                                break
+                            if _el.strip().upper() == "END":
+                                break
+                            _elines.append(_el)
+                        _econtent = "\n".join(_elines).strip()
+                        if not _econtent:
+                            print(f"  {DIM}Nothing entered. Edit cancelled.{RESET}")
+                            continue
+                        if _legacy_rewrite(_mid, _econtent):
+                            print(f"\n  {GREEN}✦ Letter updated.{RESET}\n")
+                        else:
+                            print(f"\n  {RED}Update failed.{RESET}\n")
+                        _leg_outbox = _legacy_letters_by(_leg_key)
+
+                    elif _mact == "delete":
+                        # 4 confirmations
+                        try:
+                            if _HAS_PT:
+                                _md1 = _pt_prompt(_PT_ANSI(
+                                    f"  {RED}Permanently delete letter for {_mford}?{RESET}  {DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _md1 = input(f"  Permanently delete letter for {_mford}? [y/N]  ").strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _md1 = "n"
+                        if _md1 != "y":
+                            print(f"  {DIM}Deletion cancelled.{RESET}")
+                            continue
+                        try:
+                            if _HAS_PT:
+                                _md2 = _pt_prompt(_PT_ANSI(
+                                    f"  {RED}This letter cannot be recovered. Are you sure?{RESET}  {DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _md2 = input("  Cannot be recovered. Are you sure? [y/N]  ").strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _md2 = "n"
+                        if _md2 != "y":
+                            print(f"  {DIM}Deletion cancelled.{RESET}")
+                            continue
+                        try:
+                            if _HAS_PT:
+                                _md3 = _pt_prompt(_PT_ANSI(
+                                    f"  {RED}Confirm: type  DELETE  to proceed:{RESET}  "
+                                )).strip()
+                            else:
+                                _md3 = input("  Type DELETE to confirm:  ").strip()
+                        except (EOFError, KeyboardInterrupt):
+                            _md3 = ""
+                        if _md3.upper() != "DELETE":
+                            print(f"  {DIM}Deletion cancelled.{RESET}")
+                            continue
+                        try:
+                            if _HAS_PT:
+                                _md4 = _pt_prompt(_PT_ANSI(
+                                    f"  {RED}Final confirmation — gone forever. Last chance.{RESET}  {DIM}[y/N]{RESET}  "
+                                )).strip().lower()
+                            else:
+                                _md4 = input("  Gone forever. Last chance. [y/N]  ").strip().lower()
+                        except (EOFError, KeyboardInterrupt):
+                            _md4 = "n"
+                        if _md4 != "y":
+                            print(f"  {DIM}Deletion cancelled.{RESET}")
+                            continue
+                        if _legacy_delete(_mid):
+                            print(f"\n  {RED}✦ Letter permanently deleted.{RESET}\n")
+                        else:
+                            print(f"\n  {RED}Deletion failed.{RESET}\n")
+                        _leg_outbox = _legacy_letters_by(_leg_key)
+
+                    else:
+                        print(f"  {DIM}Usage: my <number> read | edit | delete{RESET}")
+
+                else:
+                    print(f"  {DIM}Commands:  read <n>  ·  write  ·  my <n> read/edit/delete  ·  done{RESET}")
+
             continue
 
         elif cmd.startswith("key "):

@@ -1,0 +1,207 @@
+"""
+Cursiv Legacy Store — family letter vault.
+
+Letters written by family members, stored locally, accessed only by the
+intended recipient via their established credentials.
+
+Not documented. Not in help. Found only if you look.
+
+Created: May 20, 2026 · Fruitland Park, Florida
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import re
+from datetime import datetime
+from pathlib import Path
+
+_LEGACY_DIR  = Path(__file__).parent.parent.parent / ".cursiv" / "family" / "legacy"
+_LETTERS_DIR = _LEGACY_DIR / "letters"
+_INDEX_FILE  = _LEGACY_DIR / "index.json"
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _ensure_dirs() -> None:
+    _LETTERS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _load_index() -> list[dict]:
+    if not _INDEX_FILE.exists():
+        return []
+    try:
+        return json.loads(_INDEX_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+
+def _save_index(index: list[dict]) -> None:
+    _ensure_dirs()
+    _INDEX_FILE.write_text(
+        json.dumps(index, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+# ── Public read API ───────────────────────────────────────────────────────────
+
+def letters_waiting_for(recipient_key: str) -> list[dict]:
+    """All letters addressed to recipient_key, sorted oldest first."""
+    return sorted(
+        [e for e in _load_index() if e.get("for_key") == recipient_key],
+        key=lambda e: e.get("written", ""),
+    )
+
+
+def letters_written_by(author_key: str) -> list[dict]:
+    """All letters written by author_key, sorted oldest first."""
+    return sorted(
+        [e for e in _load_index() if e.get("from_key") == author_key],
+        key=lambda e: e.get("written", ""),
+    )
+
+
+def get_letter_entry(letter_id: str) -> dict | None:
+    return next((e for e in _load_index() if e.get("id") == letter_id), None)
+
+
+def get_letter_content(letter_id: str) -> str | None:
+    """Return the body of a letter (everything after the header separator)."""
+    entry = get_letter_entry(letter_id)
+    if not entry:
+        return None
+    path = _LETTERS_DIR / entry["filename"]
+    if not path.exists():
+        return None
+    try:
+        raw = path.read_text(encoding="utf-8")
+        if "---\n" in raw:
+            return raw.split("---\n", 1)[1]
+        return raw
+    except Exception:
+        return None
+
+
+# ── Write / mutate API ────────────────────────────────────────────────────────
+
+def save_letter(
+    from_key: str,
+    from_display: str,
+    for_key: str,
+    for_display: str,
+    subject: str,
+    content: str,
+    access_type: str = "babel_pin",   # "babel_pin" | "letter_pin"
+    access_hash: str = "",
+) -> str:
+    """Save a new letter. Returns the letter ID."""
+    _ensure_dirs()
+
+    now       = datetime.now()
+    timestamp = now.strftime("%Y%m%d%H%M%S")
+    letter_id = f"{from_key}_for_{for_key}_{timestamp}"
+    filename  = f"{letter_id}.letter"
+
+    header = (
+        f"LEGACY_LETTER\n"
+        f"from: {from_key}\n"
+        f"from_display: {from_display}\n"
+        f"for: {for_key}\n"
+        f"for_display: {for_display}\n"
+        f"subject: {subject or '(no subject)'}\n"
+        f"written: {now.isoformat()}\n"
+        f"access_type: {access_type}\n"
+        f"---\n"
+    )
+
+    (_LETTERS_DIR / filename).write_text(
+        header + content.strip() + "\n",
+        encoding="utf-8",
+    )
+
+    index = _load_index()
+    index.append({
+        "id":           letter_id,
+        "from_key":     from_key,
+        "from_display": from_display,
+        "for_key":      for_key,
+        "for_display":  for_display,
+        "subject":      subject or "(no subject)",
+        "written":      now.isoformat(),
+        "filename":     filename,
+        "access_type":  access_type,
+        "access_hash":  access_hash,
+    })
+    _save_index(index)
+    return letter_id
+
+
+def rewrite_letter(letter_id: str, new_content: str) -> bool:
+    """Replace the body of an existing letter. Adds a 'revised' timestamp."""
+    index = _load_index()
+    entry = next((e for e in index if e.get("id") == letter_id), None)
+    if not entry:
+        return False
+    path = _LETTERS_DIR / entry["filename"]
+    if not path.exists():
+        return False
+
+    now_str = datetime.now().isoformat()
+    header = (
+        f"LEGACY_LETTER\n"
+        f"from: {entry['from_key']}\n"
+        f"from_display: {entry['from_display']}\n"
+        f"for: {entry['for_key']}\n"
+        f"for_display: {entry['for_display']}\n"
+        f"subject: {entry['subject']}\n"
+        f"written: {entry['written']}\n"
+        f"revised: {now_str}\n"
+        f"access_type: {entry['access_type']}\n"
+        f"---\n"
+    )
+    path.write_text(header + new_content.strip() + "\n", encoding="utf-8")
+
+    entry["revised"] = now_str
+    _save_index(index)
+    return True
+
+
+def delete_letter(letter_id: str) -> bool:
+    """Permanently delete a letter and remove it from the index."""
+    index = _load_index()
+    entry = next((e for e in index if e.get("id") == letter_id), None)
+    if not entry:
+        return False
+    try:
+        (_LETTERS_DIR / entry["filename"]).unlink(missing_ok=True)
+    except Exception:
+        pass
+    _save_index([e for e in index if e.get("id") != letter_id])
+    return True
+
+
+# ── PIN helpers ───────────────────────────────────────────────────────────────
+
+def make_letter_pin_hash(pin: str) -> str:
+    return hashlib.sha256(pin.strip().encode()).hexdigest()
+
+
+def verify_letter_pin(letter_id: str, pin: str) -> bool:
+    """Verify a letter-specific access PIN."""
+    entry = get_letter_entry(letter_id)
+    if not entry or entry.get("access_type") != "letter_pin":
+        return False
+    stored = entry.get("access_hash", "")
+    if not stored:
+        return False
+    h = hashlib.sha256(pin.strip().encode()).hexdigest()
+    return hmac.compare_digest(stored, h)
+
+
+# ── Key derivation helper ─────────────────────────────────────────────────────
+
+def name_to_key(display_name: str) -> str:
+    """Turn a display name into a lowercase slug for use as a key."""
+    return re.sub(r"[^a-z0-9]", "", display_name.lower().split()[0])
