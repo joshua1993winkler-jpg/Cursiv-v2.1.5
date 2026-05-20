@@ -2227,10 +2227,10 @@ def main() -> None:
                         _fam_letter = _fam_get_letter(_fam_profile["key"])
                         _fam_prompt = _fam_build_prompt(_fam_profile)
 
-                        # Replace entire conversation history with family context.
-                        # Inject the full letter as the opening assistant turn so the
-                        # AI knows it has already delivered it and responds accordingly.
-                        cfg["history"] = [
+                        # Replace the live history list in-place — cfg["history"] is
+                        # never read back by the main loop; only the local `history`
+                        # variable is passed to the model.  Slice-assign to mutate it.
+                        history[:] = [
                             {"role": "system",    "content": _fam_prompt},
                             {"role": "assistant", "content": _fam_letter},
                         ]
