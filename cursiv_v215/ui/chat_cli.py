@@ -668,7 +668,7 @@ _TIPS: list[tuple[str, str]] = [
     ("grow system",           "scan the full codebase and suggest the next capability"),
     ("council <question>",    "3-cycle multi-provider synthesis — all seeing eye"),
     ("anchor this",           "save last exchange as a permanent Strand"),
-    ("babel <text>",          "translate any language → English via binary"),
+    ("babel <text>",          "any language → English  /  babel <text> into <lang(s)>  English → any"),
     ("voice",                  "mic → Whisper STT → Babel clean → inject as message"),
     ("voice raw  /  voice 10", "STT only (skip Babel pass) or custom duration"),
     ("image <prompt>",        "generate image with DALL-E 3"),
@@ -872,14 +872,18 @@ _HELP = f"""\
                             Requires:  pip install faster-whisper sounddevice
                             Whisper model downloads once to .cursiv/voice/ (~466 MB small)
 
-  {GOLD}── Babel Agent (any language → binary → English) ────────────────{RESET}
-  {LGOLD}babel <text>{RESET}              encode any language to UTF-8 binary,
-                            then decode + translate to English via the LLM
+  {GOLD}── Babel Agent (universal translation) ─────────────────────────{RESET}
+  {LGOLD}babel <text>{RESET}              any language → UTF-8 binary → English
   {LGOLD}babel: <text>{RESET}             same with colon
-                            Works for every language without pre-programming:
-                            Chinese, Arabic, Japanese, Russian, Hindi, etc.
+                            Works for every script: Chinese, Arabic, Japanese,
+                            Russian, Hindi, Korean, etc.
                             Example:  babel Bonjour le monde
                             Example:  babel こんにちは世界
+
+  {LGOLD}babel <text> into <lang>{RESET}  translate English text into target language(s)
+                            Multiple targets supported — separate with spaces
+                            Example:  babel I love you into korean mandarin russian
+                            Example:  babel Good morning into spanish french japanese
 
   {GOLD}── Group Discovery (multi-provider consensus) ───────────────────{RESET}
   {LGOLD}council <question>{RESET}        xAI → OpenAI → Claude in sequence, each seeing
@@ -2157,6 +2161,70 @@ def main() -> None:
                 print(f"  {DIM}Example:  babel こんにちは世界{RESET}")
                 print(f"  {DIM}Example:  babel مرحبا بالعالم{RESET}")
                 continue
+
+            # ── Outbound translation: "babel <text> into <lang> [lang2] ..." ──
+            _into_match = re.search(r'\s+into\s+(.+)$', raw_input, re.IGNORECASE)
+            if _into_match and not re.match(r'^i\s+am\b', raw_input, re.IGNORECASE):
+                _out_src   = raw_input[:_into_match.start()].strip()
+                _out_langs = [l.strip().rstrip(",;") for l in re.split(r'[\s,]+', _into_match.group(1).strip()) if l.strip()]
+                if _out_src and _out_langs:
+                    _lang_names = {
+                        "mandarin": "Mandarin Chinese", "chinese": "Mandarin Chinese",
+                        "korean": "Korean", "russian": "Russian", "spanish": "Spanish",
+                        "french": "French", "german": "German", "japanese": "Japanese",
+                        "arabic": "Arabic", "hindi": "Hindi", "portuguese": "Portuguese",
+                        "italian": "Italian", "turkish": "Turkish", "dutch": "Dutch",
+                        "polish": "Polish", "vietnamese": "Vietnamese", "thai": "Thai",
+                        "hebrew": "Hebrew", "greek": "Greek", "swedish": "Swedish",
+                        "ukrainian": "Ukrainian", "farsi": "Persian (Farsi)",
+                        "persian": "Persian (Farsi)", "tagalog": "Tagalog",
+                    }
+                    _out_targets = [_lang_names.get(l.lower(), l.title()) for l in _out_langs]
+                    _out_label   = ", ".join(_out_targets)
+                    print(f"\n  {GOLD}⬡ Babel Agent{RESET}  {DIM}English → {_out_label}{RESET}\n")
+                    _out_sys = (
+                        "You are a precise translation engine. "
+                        "Translate the user's text into each requested language. "
+                        "For each language output a header line exactly like:\n"
+                        "  ── [Language Name] ──\n"
+                        "followed immediately by the translation. "
+                        "Preserve the tone, meaning, and punctuation faithfully. "
+                        "Return translations only — no explanations, no preamble."
+                    )
+                    _out_user = (
+                        f"Text to translate:\n{_out_src}\n\n"
+                        f"Translate into: {', '.join(_out_targets)}"
+                    )
+                    _out_msgs = [
+                        {"role": "system", "content": _out_sys},
+                        {"role": "user",   "content": _out_user},
+                    ]
+                    _ant_key = cfg.get("anthropic_key", "")
+                    _xai_key = cfg.get("api_key", "")
+                    _oai_key = cfg.get("openai_key", "")
+                    if _ant_key:
+                        _out_label2 = "Claude"
+                        _out_gen    = _call_claude_direct(_out_msgs, _ant_key)
+                    elif _xai_key:
+                        _out_label2 = "xAI"
+                        _out_gen    = _call_xai_stream(_out_msgs, _xai_key, False)
+                    elif _oai_key:
+                        _out_label2 = "OpenAI"
+                        _out_gen    = _call_openai_direct(_out_msgs, _oai_key)
+                    else:
+                        _out_label2 = "Ollama"
+                        _out_gen    = _call_ollama(_out_msgs, max_tokens=800)
+                    print(f"  {DIM}via {_out_label2}{RESET}\n")
+                    for _oc in _out_gen:
+                        if _oc == RATE_SENTINEL:
+                            continue
+                        try:
+                            _os = _oc.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8", errors="replace")
+                        except Exception:
+                            _os = _oc.encode("ascii", errors="replace").decode("ascii")
+                        print(_os, end="", flush=True)
+                    print("\n")
+                    continue
 
             # ── Family activation: "babel I am [Name] born [Date], [PIN]" ────
             if _FAM_OK:
