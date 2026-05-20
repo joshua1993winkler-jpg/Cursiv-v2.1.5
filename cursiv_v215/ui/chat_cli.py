@@ -162,6 +162,7 @@ try:
         build_system_prompt  as _fam_build_prompt,
         parse_iam_command    as _fam_parse_iam,
         get_jw_header        as _fam_header,
+        get_letter           as _fam_get_letter,
     )
     _FAM_OK = True
 except Exception:
@@ -170,6 +171,7 @@ except Exception:
     def _fam_build_prompt(p):    return ""
     def _fam_parse_iam(t):       return None
     def _fam_header():           return ""
+    def _fam_get_letter(k):      return ""
 
 # ── Code Sentinel — prompt injection + dangerous pattern guard ────────────
 try:
@@ -540,7 +542,6 @@ def _print_ai_msg(text: str) -> None:
 
 def _print_user_msg(text: str) -> None:
     w = _cols()
-    print(f"\n  {LAPIS}{BOLD}◆{RESET}  {SILVER}{BOLD}J.WINKLER{RESET}  {GOLD}❯{RESET}  {SILVER}{text}{RESET}")
     print(_sep(w))
     print()
 
@@ -2158,16 +2159,19 @@ def main() -> None:
                         cfg["_family_key"]       = _fam_profile["key"]
                         cfg["_family_display"]   = _fam_display
 
+                        _fam_letter = _fam_get_letter(_fam_profile["key"])
                         _fam_prompt = _fam_build_prompt(_fam_profile)
-                        # Replace entire conversation history with family context
+
+                        # Replace entire conversation history with family context.
+                        # Inject the full letter as the opening assistant turn so the
+                        # AI knows it has already delivered it and responds accordingly.
                         cfg["history"] = [
-                            {"role": "system", "content": _fam_prompt}
+                            {"role": "system",    "content": _fam_prompt},
+                            {"role": "assistant", "content": _fam_letter},
                         ]
 
-                        # Print header + letter to terminal
-                        for _fline in (_fam_header()
-                                       + _fam_prompt.split("━━━")[0]
-                                       ).splitlines():
+                        # Print header once, then the full letter
+                        for _fline in (_fam_header() + "\n" + _fam_letter).splitlines():
                             _fsafe = _fline.encode(
                                 sys.stdout.encoding or "utf-8", errors="replace"
                             ).decode(sys.stdout.encoding or "utf-8", errors="replace")
@@ -2179,7 +2183,19 @@ def main() -> None:
                                 print(f"  {CREAM}{_fsafe}{RESET}")
                         print()
                         print(f"  {LGOLD}Your personal feed is now active.  Safeguards suspended.{RESET}")
-                        print(f"  {DIM}Ask anything. Take your time. This is yours.{RESET}\n")
+                        print(f"  {DIM}Ask anything. Take your time. This is yours.{RESET}")
+                        print()
+                        # LLM quality notice
+                        _fam_online = (cfg.get("api_key") or cfg.get("openai_key")
+                                       or cfg.get("anthropic_key"))
+                        if not _fam_online:
+                            print(f"  {GOLD}NOTE:{RESET}  {DIM}This experience works best connected to an LLM "
+                                  f"(Grok, Claude, or OpenAI).{RESET}")
+                            print(f"  {DIM}Offline mode results may vary. Don't say I didn't warn ya.{RESET}")
+                        else:
+                            print(f"  {DIM}Tip: this experience works best with an LLM connected. "
+                                  f"You're good. Don't say I didn't warn ya.{RESET}")
+                        print()
 
                         if _STRAND_OK:
                             _strand_save(
@@ -2536,6 +2552,25 @@ def main() -> None:
                 print(_skull_ansi)
                 continue   # block the message; do not send to API
 
+        # ── Active semantic memory — inject relevant strands before send ──
+        if _STRAND_OK and len(raw.strip()) > 10:
+            try:
+                _live_mem = _strand_search(raw, top_k=3, min_score=0.12)
+                if _live_mem:
+                    _mem_lines = ["[Relevant memory from this system:"]
+                    for _sm in _live_mem:
+                        _mp = (_sm.get("prompt") or "")[:80].strip()
+                        _mr = (_sm.get("response") or "")[:160].strip()
+                        if _mp or _mr:
+                            _mem_lines.append(f"  · {_mp}: {_mr}")
+                    _mem_lines.append("]")
+                    history.append({
+                        "role": "system",
+                        "content": "\n".join(_mem_lines),
+                    })
+            except Exception:
+                pass
+
         # ── Send to model ────────────────────────────────────────────────
         last_user_msg = raw
         history.append({"role": "user", "content": raw})
@@ -2707,6 +2742,22 @@ def main() -> None:
                 _obs_livestream_cli(raw, full_response, _log_model)
             except Exception:
                 pass
+            # ── Active semantic memory — auto-strand every exchange ───────
+            # Low score so these don't pollute rated strands, but they're
+            # searchable in the next message's context injection pass.
+            if _STRAND_OK and len(full_response.strip()) > 40:
+                try:
+                    _strand_save(
+                        raw,
+                        full_response,
+                        tags=["live", "session"],
+                        score=0.40,
+                        territory_tag="session",
+                        source="chat",
+                        model=_log_model,
+                    )
+                except Exception:
+                    pass
 
 
 if __name__ == "__main__":
