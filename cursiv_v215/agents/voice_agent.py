@@ -1,72 +1,70 @@
 """
-Voice Agent — local audio decode to text.  No LLM, no cloud.
+Voice Agent — two-stage local pipeline.  No cloud at any step.
 
-Same philosophy as Babel: raw bytes → local decoder → Unicode text.
+  Stage 1 (STT):   mic → PCM → faster-whisper → raw transcript
+  Stage 2 (Clean): raw text → Babel binary encode → LLM → clean English
 
-  Babel:  text bytes  → Python UTF-8 decode  → Unicode string
-  Voice:  PCM bytes   → Vosk local decoder   → English string
+Stage 2 reuses the existing Babel binary system:
+  - Non-English speech → full translation to English
+  - English speech → filler-word removal, transcription error correction
+  - The binary encoding forces careful character-level re-reading by the LLM
 
-Audio never leaves the machine.  No API call is made at any point.
+STT backend cascade (first available wins):
+  1. faster-whisper   — best quality, CPU int8, multilingual, ~466 MB small model
+  2. Vosk             — good offline, ~40 MB model
+  3. SpeechRecognition + pocketsphinx — zero download, low quality last resort
 
-Backend cascade (first available wins):
-  1. Vosk + sounddevice    — best quality (~40 MB model, auto-downloads once)
-  2. Vosk + pyaudio        — same model, different capture library
-  3. SpeechRecognition + pocketsphinx — zero model download, lower quality
-
-Install for best results:
-  pip install vosk sounddevice
+Install for full pipeline:
+  pip install faster-whisper sounddevice
 """
 from __future__ import annotations
 
 import io
 import json
+import tempfile
 import urllib.request
 import wave
 import zipfile
 from pathlib import Path
 
-# ── Paths ────────────────────────────────────────────────────────────────────
-_ROOT       = Path(__file__).parent.parent.parent
-_VOICE_DIR  = _ROOT / ".cursiv" / "voice"
-SAMPLE_RATE = 16_000   # Vosk and Sphinx both expect 16 kHz mono int16
+# ── Paths ─────────────────────────────────────────────────────────────────────
+_ROOT      = Path(__file__).parent.parent.parent
+_VOICE_DIR = _ROOT / ".cursiv" / "voice"
+SAMPLE_RATE = 16_000   # all backends expect 16 kHz mono
 
-_MODEL_NAME = "vosk-model-small-en-us-0.15"
-_MODEL_URL  = f"https://alphacephei.com/vosk/models/{_MODEL_NAME}.zip"
-_MODEL_DIR  = _VOICE_DIR / _MODEL_NAME
+# Vosk small-en model (fallback)
+_VOSK_MODEL_NAME = "vosk-model-small-en-us-0.15"
+_VOSK_MODEL_URL  = f"https://alphacephei.com/vosk/models/{_VOSK_MODEL_NAME}.zip"
+_VOSK_MODEL_DIR  = _VOICE_DIR / _VOSK_MODEL_NAME
 
+# faster-whisper uses HuggingFace hub cache by default (~/.cache/huggingface)
+# Override with WHISPER_CACHE env var or pass download_root to WhisperModel.
+_WHISPER_CACHE = _VOICE_DIR / "faster-whisper"
 
-# ── Model bootstrap (first-use download, ~40 MB) ─────────────────────────────
+# ── Babel system prompt for voice cleaning ────────────────────────────────────
+# Used in Stage 2: raw STT transcript → clean English.
+VOICE_CLEAN_SYSTEM = """You are a voice transcription cleaner.
 
-def _ensure_vosk_model(status_cb=None) -> Path:
-    """Download + unzip Vosk model on first use; subsequent calls are instant."""
-    if _MODEL_DIR.exists():
-        return _MODEL_DIR
-    _VOICE_DIR.mkdir(parents=True, exist_ok=True)
-    zip_path = _VOICE_DIR / f"{_MODEL_NAME}.zip"
-    if status_cb:
-        status_cb("First-time setup: downloading Vosk voice model (~40 MB)…")
-    try:
-        urllib.request.urlretrieve(_MODEL_URL, zip_path)
-    except Exception as exc:
-        raise RuntimeError(f"Model download failed: {exc}") from exc
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(_VOICE_DIR)
-    try:
-        zip_path.unlink()
-    except Exception:
-        pass
-    if status_cb:
-        status_cb("Voice model ready.")
-    return _MODEL_DIR
+You receive raw speech-to-text output that has been decoded from binary.
+Your job:
+1. Remove filler words (um, uh, like, you know, so, actually)
+2. Fix obvious transcription errors (homophones, cut-off words)
+3. Add proper punctuation and capitalization
+4. Preserve ALL meaning and intent — do not paraphrase or summarize
+5. If the speech is in a non-English language, translate it to clear English
+
+Reply with ONLY the cleaned text.  No labels, no headers, no explanation."""
 
 
 # ── Audio capture ─────────────────────────────────────────────────────────────
 
-def record(duration_s: float = 5.0, status_cb=None) -> bytes:
+def record(duration_s: float = 5.0, status_cb=None) -> tuple[bytes, object]:
     """
-    Capture `duration_s` seconds from the default microphone.
-    Returns raw PCM int16 bytes (mono, 16 kHz).
-    Tries sounddevice first, falls back to pyaudio.
+    Capture audio from the default microphone.
+
+    Returns (pcm_int16_bytes, float32_array_or_None).
+    float32_array is used by faster-whisper directly (no temp file needed).
+    pcm_int16_bytes is used by Vosk.
     """
     if status_cb:
         status_cb(f"Listening… ({duration_s:.0f}s)")
@@ -75,20 +73,26 @@ def record(duration_s: float = 5.0, status_cb=None) -> bytes:
     try:
         import sounddevice as _sd
         import numpy as _np
-        audio = _sd.rec(
+
+        # Capture float32 for faster-whisper, int16 for Vosk
+        arr_f32 = _sd.rec(
             int(duration_s * SAMPLE_RATE),
             samplerate=SAMPLE_RATE,
             channels=1,
-            dtype="int16",
+            dtype="float32",
         )
         _sd.wait()
-        return audio.tobytes()
+        flat   = arr_f32.flatten()
+        pcm    = (flat * 32767).astype(_np.int16).tobytes()
+        return pcm, flat
     except ImportError:
         pass
 
     # ── pyaudio fallback ──────────────────────────────────────────────────────
     try:
         import pyaudio as _pa
+        import numpy as _np
+
         pa     = _pa.PyAudio()
         stream = pa.open(
             format=_pa.paInt16,
@@ -102,59 +106,117 @@ def record(duration_s: float = 5.0, status_cb=None) -> bytes:
         stream.stop_stream()
         stream.close()
         pa.terminate()
-        return b"".join(frames)
+        raw = b"".join(frames)
+        # float32 for faster-whisper
+        arr = _np.frombuffer(raw, dtype=_np.int16).astype(_np.float32) / 32768.0
+        return raw, arr
     except ImportError:
         pass
 
     raise RuntimeError(
-        "No audio capture library found.\n"
+        "No audio capture library.\n"
         "  pip install sounddevice   (recommended)\n"
         "  pip install pyaudio       (alternative)"
     )
 
 
-# ── Transcription ─────────────────────────────────────────────────────────────
+# ── STT Stage 1: raw transcription ───────────────────────────────────────────
 
-def transcribe(pcm_bytes: bytes, status_cb=None) -> str:
-    """
-    Decode PCM audio bytes → text entirely locally.
+def _transcribe_whisper(
+    audio,   # float32 numpy array or file path
+    model_size: str = "small",
+    status_cb=None,
+) -> str:
+    """faster-whisper transcription.  Downloads model on first use."""
+    from faster_whisper import WhisperModel  # type: ignore
 
-    Vosk is tried first (best quality).  If vosk is not installed,
-    falls back to pocketsphinx via SpeechRecognition.
-    Neither path makes any network call.
-    """
+    _WHISPER_CACHE.mkdir(parents=True, exist_ok=True)
+    if status_cb:
+        status_cb(f"Transcribing with Whisper ({model_size})…")
 
-    # ── Vosk (primary) ────────────────────────────────────────────────────────
+    model = WhisperModel(
+        model_size,
+        device="cpu",
+        compute_type="int8",
+        download_root=str(_WHISPER_CACHE),
+    )
+    segments, _info = model.transcribe(audio, beam_size=5, language=None)
+    return " ".join(seg.text.strip() for seg in segments).strip()
+
+
+def _ensure_vosk_model(status_cb=None) -> Path:
+    if _VOSK_MODEL_DIR.exists():
+        return _VOSK_MODEL_DIR
+    _VOICE_DIR.mkdir(parents=True, exist_ok=True)
+    zip_path = _VOICE_DIR / f"{_VOSK_MODEL_NAME}.zip"
+    if status_cb:
+        status_cb("Downloading Vosk model (~40 MB)…")
+    urllib.request.urlretrieve(_VOSK_MODEL_URL, zip_path)
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(_VOICE_DIR)
     try:
-        from vosk import Model, KaldiRecognizer, SetLogLevel  # type: ignore
-        SetLogLevel(-1)
-        model_path = _ensure_vosk_model(status_cb)
-        rec = KaldiRecognizer(Model(str(model_path)), SAMPLE_RATE)
-        rec.AcceptWaveform(pcm_bytes)
-        result = json.loads(rec.FinalResult())
-        return result.get("text", "").strip()
+        zip_path.unlink()
+    except Exception:
+        pass
+    return _VOSK_MODEL_DIR
+
+
+def _transcribe_vosk(pcm_bytes: bytes, status_cb=None) -> str:
+    from vosk import Model, KaldiRecognizer, SetLogLevel  # type: ignore
+    SetLogLevel(-1)
+    path = _ensure_vosk_model(status_cb)
+    rec  = KaldiRecognizer(Model(str(path)), SAMPLE_RATE)
+    rec.AcceptWaveform(pcm_bytes)
+    return json.loads(rec.FinalResult()).get("text", "").strip()
+
+
+def _transcribe_sphinx(pcm_bytes: bytes) -> str:
+    import speech_recognition as _sr  # type: ignore
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(pcm_bytes)
+    buf.seek(0)
+    r = _sr.Recognizer()
+    with _sr.AudioFile(buf) as src:
+        data = r.record(src)
+    return r.recognize_sphinx(data)
+
+
+def transcribe_raw(
+    pcm_bytes: bytes,
+    float32_arr=None,
+    model_size: str = "small",
+    status_cb=None,
+) -> str:
+    """
+    Stage 1: audio bytes → raw text string.
+    Tries faster-whisper → Vosk → Sphinx in order.
+    """
+    # ── faster-whisper ────────────────────────────────────────────────────────
+    try:
+        audio_in = float32_arr if float32_arr is not None else pcm_bytes
+        return _transcribe_whisper(audio_in, model_size=model_size, status_cb=status_cb)
     except ImportError:
         pass
     except Exception as exc:
         if status_cb:
-            status_cb(f"Vosk error ({exc}) — trying Sphinx fallback")
+            status_cb(f"Whisper error ({exc}) — trying Vosk")
 
-    # ── SpeechRecognition + pocketsphinx (fallback) ───────────────────────────
+    # ── Vosk ──────────────────────────────────────────────────────────────────
     try:
-        import speech_recognition as _sr  # type: ignore
+        return _transcribe_vosk(pcm_bytes, status_cb)
+    except ImportError:
+        pass
+    except Exception as exc:
+        if status_cb:
+            status_cb(f"Vosk error ({exc}) — trying Sphinx")
 
-        buf = io.BytesIO()
-        with wave.open(buf, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)   # int16 = 2 bytes
-            wf.setframerate(SAMPLE_RATE)
-            wf.writeframes(pcm_bytes)
-        buf.seek(0)
-
-        r = _sr.Recognizer()
-        with _sr.AudioFile(buf) as source:
-            audio_data = r.record(source)
-        return r.recognize_sphinx(audio_data)
+    # ── pocketsphinx ─────────────────────────────────────────────────────────
+    try:
+        return _transcribe_sphinx(pcm_bytes)
     except ImportError:
         pass
     except Exception as exc:
@@ -162,24 +224,16 @@ def transcribe(pcm_bytes: bytes, status_cb=None) -> str:
             status_cb(f"Sphinx error: {exc}")
 
     raise RuntimeError(
-        "No voice transcription library found.\n"
-        "  pip install vosk sounddevice      (recommended — ~40 MB model)\n"
-        "  pip install SpeechRecognition pocketsphinx pyaudio  (zero-download fallback)"
+        "No STT backend available.\n"
+        "  pip install faster-whisper sounddevice   (recommended)\n"
+        "  pip install vosk sounddevice             (offline fallback)\n"
+        "  pip install SpeechRecognition pocketsphinx pyaudio  (last resort)"
     )
 
 
-# ── Convenience: record + transcribe in one call ──────────────────────────────
-
-def listen(duration_s: float = 5.0, status_cb=None) -> str:
-    """Record then transcribe.  Returns the transcribed text string."""
-    pcm = record(duration_s, status_cb)
-    return transcribe(pcm, status_cb)
-
-
-# ── Availability check ────────────────────────────────────────────────────────
+# ── Availability ──────────────────────────────────────────────────────────────
 
 def is_available() -> bool:
-    """True if at least one capture backend is importable."""
     for pkg in ("sounddevice", "pyaudio"):
         try:
             __import__(pkg)
@@ -189,15 +243,22 @@ def is_available() -> bool:
     return False
 
 
-def backend_name() -> str:
-    """Return the name of the first available capture backend."""
-    try:
-        import sounddevice  # noqa: F401
-        return "sounddevice"
-    except ImportError:
-        pass
-    try:
-        import pyaudio  # noqa: F401
-        return "pyaudio"
-    except ImportError:
-        return "none"
+def stt_backend() -> str:
+    """Return the name of the best available STT library."""
+    for pkg in ("faster_whisper", "vosk", "speech_recognition"):
+        try:
+            __import__(pkg)
+            return pkg.replace("_", "-")
+        except ImportError:
+            pass
+    return "none"
+
+
+def capture_backend() -> str:
+    for pkg in ("sounddevice", "pyaudio"):
+        try:
+            __import__(pkg)
+            return pkg
+        except ImportError:
+            pass
+    return "none"

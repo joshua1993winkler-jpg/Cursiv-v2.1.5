@@ -135,21 +135,25 @@ except Exception:
     def _session_get_last():                    return None
     _RATED_JSONL = Path(ROOT) / ".cursiv" / "rated_exchanges.jsonl"
 
-# ── Voice Agent — local mic → PCM → Vosk decode → text (no LLM, no cloud) ─
+# ── Voice Agent — two-stage local pipeline (STT → Babel clean) ────────────
 try:
     from cursiv_v215.agents.voice_agent import (
-        listen       as _voice_listen,
-        is_available as _voice_avail,
-        backend_name as _voice_backend,
-        SAMPLE_RATE  as _VOICE_SR,
+        record           as _voice_record,
+        transcribe_raw   as _voice_transcribe,
+        is_available     as _voice_avail,
+        stt_backend      as _voice_stt_backend,
+        capture_backend  as _voice_cap_backend,
+        VOICE_CLEAN_SYSTEM as _VOICE_CLEAN_SYS,
     )
     _VOICE_OK = True
 except Exception:
     _VOICE_OK = False
-    def _voice_listen(duration_s=5.0, status_cb=None) -> str: return ""
-    def _voice_avail() -> bool:   return False
-    def _voice_backend() -> str:  return "none"
-    _VOICE_SR = 16000
+    def _voice_record(duration_s=5.0, status_cb=None): return b"", None
+    def _voice_transcribe(pcm, arr=None, model_size="small", status_cb=None) -> str: return ""
+    def _voice_avail() -> bool:       return False
+    def _voice_stt_backend() -> str:  return "none"
+    def _voice_cap_backend() -> str:  return "none"
+    _VOICE_CLEAN_SYS = ""
 
 # ── Codex Agent — offline-capable coding specialist ──────────────────────
 try:
@@ -584,7 +588,8 @@ _TIPS: list[tuple[str, str]] = [
     ("council <question>",    "3-cycle multi-provider synthesis — all seeing eye"),
     ("anchor this",           "save last exchange as a permanent Strand"),
     ("babel <text>",          "translate any language → English via binary"),
-    ("listen  /  listen 8",   "mic → local Vosk decode → text, no LLM, no cloud"),
+    ("voice",                  "mic → Whisper STT → Babel clean → inject as message"),
+    ("voice raw  /  voice 10", "STT only (skip Babel pass) or custom duration"),
     ("image <prompt>",        "generate image with DALL-E 3"),
     ("paste",                 "paste clipboard image → vision analysis → Strand"),
     ("remember <query>",      "search your Strand archive, zero cloud, zero API"),
@@ -741,12 +746,18 @@ _HELP = f"""\
                             Uses Brave Search API if BRAVE_API_KEY is set,
                             DuckDuckGo otherwise (free, no key needed)
 
-  {GOLD}── Voice Agent (mic → local decode → text, no cloud) ────────────{RESET}
-  {LGOLD}listen{RESET}                    record 5s from mic, decode locally via Vosk, send as message
-  {LGOLD}listen <seconds>{RESET}          custom duration  (e.g.  listen 10)
-                            Requires:  pip install vosk sounddevice
-                            First use auto-downloads Vosk model (~40 MB, one time only)
-                            No API call. No cloud. Same local-decode logic as Babel.
+  {GOLD}── Voice Agent (two-stage: STT → Babel clean) ───────────────────{RESET}
+  {LGOLD}voice{RESET}                     record 5s → faster-whisper STT → Babel binary clean → inject
+  {LGOLD}voice <seconds>{RESET}           custom duration  (e.g.  voice 10)
+  {LGOLD}voice raw{RESET}                 STT only — skip the Babel cleaning pass
+  {LGOLD}listen{RESET}                    alias for  voice raw
+                            Stage 1 (STT): faster-whisper (local, CPU int8)
+                              → Vosk fallback → SpeechRecognition+Sphinx last resort
+                            Stage 2 (clean): raw text → Babel binary encode → LLM
+                              fixes filler words, transcription errors, translates
+                              non-English speech — reuses existing Babel pipeline
+                            Requires:  pip install faster-whisper sounddevice
+                            Whisper model downloads once to .cursiv/voice/ (~466 MB small)
 
   {GOLD}── Babel Agent (any language → binary → English) ────────────────{RESET}
   {LGOLD}babel <text>{RESET}              encode any language to UTF-8 binary,
@@ -1450,52 +1461,124 @@ def main() -> None:
                     print(f"  {LGOLD}Usage:{RESET}  {DIM}queue list  |  queue add <task>{RESET}")
             continue
 
-        # ── listen — mic → local Vosk decode → text → send as message ────
-        # Same architecture as Babel: raw bytes → local decoder → Unicode.
-        # No LLM, no API, no cloud. Audio never leaves the machine.
-        elif cmd == "listen" or cmd.startswith("listen "):
+        # ── voice / listen — two-stage pipeline ─────────────────────────
+        #
+        #   Stage 1  mic → faster-whisper (or Vosk) → raw transcript
+        #   Stage 2  raw text → Babel binary encode → LLM → clean English
+        #
+        # Subcommands:
+        #   voice            5s record → STT → Babel clean → inject as message
+        #   voice raw        5s record → STT only (skip Babel pass)
+        #   voice <N>        N-second record → STT → Babel clean
+        #   listen           alias for  voice raw  (backward compat)
+        #   council voice    voice + route through Group Discovery
+        elif (cmd == "voice" or cmd.startswith("voice ")
+              or cmd == "listen" or cmd.startswith("listen ")):
+
             if not _VOICE_OK:
                 print(f"  {RED}Voice agent failed to load.{RESET}")
                 continue
             if not _voice_avail():
                 print(f"  {RED}No audio capture library.{RESET}  "
-                      f"{DIM}pip install vosk sounddevice{RESET}")
+                      f"{DIM}pip install faster-whisper sounddevice{RESET}")
                 continue
 
-            # Optional duration:  listen 8  (default 5s)
-            duration = 5.0
+            # Parse subcommand
+            _is_listen = cmd.startswith("listen")
+            _sub       = ""
+            if cmd.startswith("voice "):
+                _sub = cmd[6:].strip()
+            elif cmd.startswith("listen "):
+                _sub = cmd[7:].strip()
+
+            _raw_mode  = _is_listen or _sub == "raw"
+            _duration  = 5.0
             try:
-                _dur_part = cmd.split(None, 1)[1].strip() if " " in cmd else ""
-                if _dur_part.isdigit():
-                    duration = max(1.0, min(float(_dur_part), 30.0))
+                if _sub and _sub != "raw" and _sub.replace(".", "", 1).isdigit():
+                    _duration = max(1.0, min(float(_sub), 60.0))
             except Exception:
                 pass
 
-            def _voice_status(msg: str) -> None:
+            _stt   = _voice_stt_backend()
+            _cap   = _voice_cap_backend()
+            _stage = "STT only" if _raw_mode else "STT → Babel clean"
+            print(f"\n  {GOLD}⬡ Voice  ·  {_stage}{RESET}  "
+                  f"{DIM}{_cap} capture  ·  {_stt}{RESET}")
+            print(f"  {GOLD}🎙 Listening {_duration:.0f}s…{RESET}  {DIM}speak now{RESET}\n")
+
+            def _vs(msg: str) -> None:
                 print(f"  {LGOLD}{msg}{RESET}")
 
-            print(f"\n  {GOLD}⬡ Voice — local decode{RESET}  "
-                  f"{DIM}mic → PCM → Vosk → text  ·  {_voice_backend()}{RESET}")
-            print(f"  {GOLD}🎙 Listening {duration:.0f}s…{RESET}  {DIM}speak now{RESET}\n")
+            # ── Stage 1: record + STT ─────────────────────────────────────
             try:
-                _heard = _voice_listen(duration_s=duration, status_cb=_voice_status)
+                _pcm, _arr = _voice_record(duration_s=_duration, status_cb=_vs)
+                _raw_text  = _voice_transcribe(_pcm, float32_arr=_arr, status_cb=_vs)
             except RuntimeError as _ve:
                 print(f"  {RED}{_ve}{RESET}\n")
                 continue
             except Exception as _ve:
-                print(f"  {RED}Voice error: {_ve}{RESET}\n")
+                print(f"  {RED}Voice capture error: {_ve}{RESET}\n")
                 continue
 
-            if not _heard:
+            if not _raw_text:
                 print(f"  {DIM}Nothing heard — adjust mic or try again.{RESET}\n")
                 continue
 
-            print(f"  {CREAM}{_heard}{RESET}\n")
-            # Inject the transcription as the user's next message — drop into
-            # main flow by setting raw and falling through to the model call
-            raw = _heard
-            cmd = raw.lower()
-            # (falls through to "Send to model" below)
+            print(f"  {DIM}Raw transcript:{RESET}  {_raw_text}")
+
+            if _raw_mode:
+                # Skip Stage 2 — inject raw text directly
+                raw = _raw_text
+                cmd = raw.lower()
+                print()
+                # falls through to model routing below
+
+            else:
+                # ── Stage 2: Babel binary clean pass ─────────────────────
+                # Encode raw STT output to binary, send through LLM with
+                # VOICE_CLEAN_SYSTEM — fixes filler words, errors, and
+                # translates non-English speech. Reuses Babel infrastructure.
+                if not _BABEL_OK:
+                    print(f"  {DIM}Babel unavailable — using raw transcript.{RESET}")
+                    raw = _raw_text
+                    cmd = raw.lower()
+                    print()
+                else:
+                    _vbin     = _babel_encode(_raw_text)
+                    _vdecoded = _babel_decode(_vbin)
+                    _vcl_msgs = [
+                        {"role": "system", "content": _VOICE_CLEAN_SYS},
+                        {"role": "user",   "content": _vdecoded},
+                    ]
+                    _vant = cfg.get("anthropic_key", "")
+                    _vxai = cfg.get("api_key", "")
+                    _voai = cfg.get("openai_key", "")
+
+                    if _vant:
+                        _vgen, _vlbl = _call_claude_direct(_vcl_msgs, _vant), "Claude"
+                    elif _vxai:
+                        _vgen, _vlbl = _call_xai_stream(_vcl_msgs, _vxai, False), "xAI"
+                    elif _voai:
+                        _vgen, _vlbl = _call_openai_direct(_vcl_msgs, _voai), "OpenAI"
+                    else:
+                        _vgen, _vlbl = _call_ollama(_vcl_msgs, max_tokens=300), "Ollama"
+
+                    print(f"  {DIM}Babel clean via {_vlbl}:{RESET}")
+                    _vcleaned = ""
+                    for _vchunk in _vgen:
+                        if _vchunk == RATE_SENTINEL:
+                            continue
+                        _vsafe = _vchunk.encode(
+                            sys.stdout.encoding or "utf-8", errors="replace"
+                        ).decode(sys.stdout.encoding or "utf-8", errors="replace")
+                        sys.stdout.write(f"{CREAM}{_vsafe}{RESET}")
+                        sys.stdout.flush()
+                        _vcleaned += _vchunk
+                    print("\n")
+
+                    raw = _vcleaned.strip() or _raw_text
+                    cmd = raw.lower()
+                    # falls through to model routing below
 
         # ── Paste image from clipboard → vision analysis → strand ────────
         elif cmd == "paste":
