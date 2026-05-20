@@ -585,6 +585,8 @@ def _print_owner_reveal(cfg: dict) -> None:
 # ── Rotating command tips (cycle through on every exchange) ───────────────
 _tip_idx = 0
 _TIPS: list[tuple[str, str]] = [
+    ("grow <file>",            "read a file and generate its next natural addition"),
+    ("grow system",           "scan the full codebase and suggest the next capability"),
     ("council <question>",    "3-cycle multi-provider synthesis — all seeing eye"),
     ("anchor this",           "save last exchange as a permanent Strand"),
     ("babel <text>",          "translate any language → English via binary"),
@@ -724,6 +726,38 @@ def _handle_pending_write(raw_json: str, cfg: dict) -> str:
 
 
 # ── Built-in command responses ─────────────────────────────────────────────
+
+# ── Grow system prompt ────────────────────────────────────────────────────────
+# No training needed — context injection is enough.
+# The model reads the real file, absorbs every pattern (naming, error handling,
+# strand architecture, ANSI palette, sentinel format) then writes the next
+# logical addition in exactly the same voice.
+_GROW_SYSTEM = """You are a code evolution engine built into the Cursiv AI operating system.
+
+You will receive a Python source file from the Cursiv codebase. Study it completely:
+  - Naming conventions and style (snake_case, UPPER constants, _private prefix)
+  - Import patterns (try/except with graceful fallbacks)
+  - Error handling approach
+  - ANSI palette usage (GOLD, LGOLD, CREAM, LAPIS, SILV2, RESET)
+  - Strand saving patterns (save_strand with territory, source, score)
+  - How it interacts with the rest of the system
+
+Then write the NEXT logical addition this module needs. It should feel like it was
+always part of the file — same style, same patterns, same architecture, same voice.
+
+Think about what is clearly missing or what the module is reaching toward but hasn't
+finished. Write the next natural function, class, constant block, or section.
+
+Output ONLY the new Python code. No explanation. No markdown fences. No preamble.
+Just the code that comes next, ready to append to the file."""
+
+_GROW = f"""\
+  {GOLD}── Grow (self-referential code evolution) ───────────────────────{RESET}
+  {LGOLD}grow <file>{RESET}               read a source file and generate its next natural addition
+  {LGOLD}grow system{RESET}              read the full system map and suggest the next capability
+                            No training required — context injection only.
+                            Points qwen2.5-coder at your real code, absorbs your
+                            patterns, writes the next logical line in your voice."""
 
 _HELP = f"""\
   {LGOLD}key  <xai-key>{RESET}            set xAI Grok API key       (starts with xai-)
@@ -1443,6 +1477,192 @@ def main() -> None:
                 else:
                     result = _ref_answer_cli(query)
                     _print_ai_msg(result)
+            continue
+
+        # ── grow — self-referential code evolution ───────────────────────
+        # No training. Context injection only. The model reads its own source,
+        # absorbs every pattern, and writes the next logical addition.
+        elif cmd == "grow" or cmd.startswith("grow "):
+            _grow_sub = cmd[5:].strip() if cmd.startswith("grow ") else ""
+
+            # ── grow system: what capability does the system need next? ──
+            if _grow_sub == "system":
+                print(f"\n  {GOLD}⬡ Grow — system level{RESET}  "
+                      f"{DIM}reading system map…{RESET}\n")
+                try:
+                    import ast as _gast
+                    _gsrc = ROOT
+                    _gmap_lines = ["# Cursiv system map\n"]
+                    for _gf in sorted(_gsrc.rglob("*.py")):
+                        if any(x in str(_gf) for x in
+                               ("__pycache__", ".git", "guardian", "weave")):
+                            continue
+                        try:
+                            _gc = _gf.read_text(encoding="utf-8", errors="replace")
+                            _grel = str(_gf.relative_to(_gsrc)).replace("\\", "/")
+                            _gt = _gast.parse(_gc)
+                            _gdoc = (_gast.get_docstring(_gt) or "").split("\n")[0][:80]
+                            _gnames = [
+                                n.name for n in _gast.iter_child_nodes(_gt)
+                                if isinstance(n, (_gast.FunctionDef,
+                                                  _gast.AsyncFunctionDef,
+                                                  _gast.ClassDef))
+                            ]
+                            _gmap_lines.append(
+                                f"## {_grel}\n"
+                                + (f"  {_gdoc}\n" if _gdoc else "")
+                                + (f"  exports: {', '.join(_gnames[:12])}\n"
+                                   if _gnames else "")
+                            )
+                        except Exception:
+                            pass
+                    _gsys_map = "".join(_gmap_lines)
+                except Exception as _ge:
+                    _gsys_map = f"[map error: {_ge}]"
+
+                _gsys_msgs = [
+                    {"role": "system", "content": (
+                        "You are a systems architect reviewing the Cursiv AI OS.\n"
+                        "Study the system map and identify the single most valuable "
+                        "capability that is clearly missing or only half-built.\n"
+                        "Describe it in 2-3 sentences, then write a complete Python "
+                        "module stub (filename, docstring, key functions with "
+                        "signatures and one-line docstrings) for that capability.\n"
+                        "No filler. Be specific to THIS system."
+                    )},
+                    {"role": "user", "content": _gsys_map},
+                ]
+                _gant = cfg.get("anthropic_key", "")
+                _gxai = cfg.get("api_key", "")
+                _goai = cfg.get("openai_key", "")
+                if _gant:
+                    _ggen, _glbl = _call_claude_direct(_gsys_msgs, _gant), "Claude"
+                elif _gxai:
+                    _ggen, _glbl = _call_xai_stream(_gsys_msgs, _gxai, False), "xAI"
+                elif _goai:
+                    _ggen, _glbl = _call_openai_direct(_gsys_msgs, _goai), "OpenAI"
+                else:
+                    _ggen, _glbl = _call_ollama(_gsys_msgs, max_tokens=1200), "Ollama"
+
+                print(f"  {LGOLD}Next capability — via {_glbl}:{RESET}\n")
+                _gfull = ""
+                for _gchunk in _ggen:
+                    if _gchunk == RATE_SENTINEL:
+                        continue
+                    _gsafe = _gchunk.encode(
+                        sys.stdout.encoding or "utf-8", errors="replace"
+                    ).decode(sys.stdout.encoding or "utf-8", errors="replace")
+                    sys.stdout.write(f"{CREAM}{_gsafe}{RESET}")
+                    sys.stdout.flush()
+                    _gfull += _gchunk
+                print("\n")
+                if _STRAND_OK and _gfull:
+                    _strand_save(
+                        "grow system — next capability",
+                        _gfull,
+                        tags=["grow", "system", "evolution"],
+                        score=0.80,
+                        territory_tag="architecture",
+                        source="grow",
+                        model=_glbl,
+                    )
+                continue
+
+            # ── grow <file>: what comes next in this specific file? ──────
+            if not _grow_sub:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}grow <filepath>  ·  grow system{RESET}")
+                print(_GROW)
+                continue
+
+            _gpath = Path(_grow_sub)
+            if not _gpath.is_absolute():
+                _gpath = ROOT / _grow_sub
+            if not _gpath.exists():
+                # Try relative to workspace too
+                _gpath = Path(cfg["workspace"]) / _grow_sub
+            if not _gpath.exists():
+                print(f"  {RED}File not found: {_grow_sub}{RESET}")
+                continue
+
+            try:
+                _gcode  = _gpath.read_text(encoding="utf-8", errors="replace")
+                _glines = _gcode.count("\n")
+                _grel   = _grow_sub
+            except Exception as _ge:
+                print(f"  {RED}Read error: {_ge}{RESET}")
+                continue
+
+            print(f"\n  {GOLD}⬡ Grow — {_grel}{RESET}  "
+                  f"{DIM}{_glines} lines · absorbing patterns…{RESET}\n")
+
+            _gfile_msgs = [
+                {"role": "system", "content": _GROW_SYSTEM},
+                {"role": "user",   "content": (
+                    f"# File: {_grel}\n"
+                    f"# {_glines} lines — study the full file then write what comes next.\n\n"
+                    + _gcode
+                )},
+            ]
+            _gant = cfg.get("anthropic_key", "")
+            _gxai = cfg.get("api_key", "")
+            _goai = cfg.get("openai_key", "")
+            if _gant:
+                _ggen, _glbl = _call_claude_direct(_gfile_msgs, _gant), "Claude"
+            elif _gxai:
+                _ggen, _glbl = _call_xai_stream(_gfile_msgs, _gxai, False), "xAI"
+            elif _goai:
+                _ggen, _glbl = _call_openai_direct(_gfile_msgs, _goai), "OpenAI"
+            else:
+                _ggen, _glbl = _call_ollama(_gfile_msgs, max_tokens=1500), "Ollama"
+
+            print(f"  {LGOLD}Next addition — via {_glbl}:{RESET}\n")
+            _gfull = ""
+            for _gchunk in _ggen:
+                if _gchunk == RATE_SENTINEL:
+                    continue
+                _gsafe = _gchunk.encode(
+                    sys.stdout.encoding or "utf-8", errors="replace"
+                ).decode(sys.stdout.encoding or "utf-8", errors="replace")
+                sys.stdout.write(f"{CREAM}{_gsafe}{RESET}")
+                sys.stdout.flush()
+                _gfull += _gchunk
+            print("\n")
+
+            # Offer to append
+            if _gfull.strip():
+                try:
+                    if _HAS_PT:
+                        _gans = _pt_prompt(_PT_ANSI(
+                            f"  {GOLD}Append to {_gpath.name}?{RESET}  "
+                            f"{DIM}[y/N]{RESET}  "
+                        )).strip().lower()
+                    else:
+                        _gans = input(
+                            f"  Append to {_gpath.name}? [y/N]  "
+                        ).strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    _gans = "n"
+
+                if _gans == "y":
+                    try:
+                        with open(_gpath, "a", encoding="utf-8") as _gf:
+                            _gf.write(f"\n\n{_gfull.strip()}\n")
+                        print(f"  {GREEN}Appended to {_gpath}{RESET}\n")
+                    except Exception as _gwe:
+                        print(f"  {RED}Write failed: {_gwe}{RESET}\n")
+                else:
+                    print(f"  {DIM}Not written — copy from above if you want to keep it.{RESET}\n")
+
+                if _STRAND_OK:
+                    _strand_save(
+                        f"grow: {_grel}",
+                        _gfull,
+                        tags=["grow", "evolution", "codegen"],
+                        score=0.78,
+                        territory_tag="coding",
+                        source="grow",
+                        model=_glbl,
+                    )
             continue
 
         elif cmd == "queue" or cmd.startswith("queue "):
