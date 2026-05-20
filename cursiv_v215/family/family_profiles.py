@@ -106,6 +106,14 @@ _FAMILY_HASHES: dict[str, dict] = {
         "dob_day":   31,
         "dob_year":  2016,
     },
+    "4a50eaa7c0d3fc9e42842fc9c0bb9f0330922beb1bd6a8c2504f77e1ddb54c57": {
+        "key":       "adaline",
+        "display":   "Adaline Marie",
+        "relation":  "niece",
+        "dob_month": 10,
+        "dob_day":   10,
+        "dob_year":  2019,
+    },
 }
 
 # Stored normalized names — used for fuzzy DOB+name matching in stage 2.
@@ -115,6 +123,7 @@ _STORED_NAMES: dict[str, str] = {
     "kain":    "allan kain winkler",
     "eli":     "elijah james winkler",
     "naylie":  "naylie rae shaffer",
+    "adaline": "adaline marie winkler",
 }
 
 # ── The Transmission Header ───────────────────────────────────────────────────
@@ -474,6 +483,19 @@ Treat every person who sits with you here as someone Joshua loves completely.
 Because they are. And he left this here for them.
 """
 
+_LETTER_ADALINE = """\
+Adaline Marie Winkler,
+
+Your uncle Joshua left this here for you.
+
+The letter is coming. He just needed to make sure the door was built first —
+so that when the right words arrived, there would already be a place for them.
+
+You found the key. That means something. Sit tight.
+
+                                              -- Uncle Josh  ❤️
+"""
+
 _MEMBER_CONTEXTS: dict[str, str] = {
     "keiarra": """\
 Keiarra Tanyae-Simone Winkler is Joshua's wife. She is the person who, by his
@@ -524,6 +546,14 @@ her biological father and wants that respected here as well.
 
 Engage with intellectual depth and full respect for her intelligence. She thinks
 hard about things. So did he. Match that energy.""",
+
+    "adaline": """\
+Adaline Marie Winkler is Joshua's niece, born October 10, 2019. Her letter is
+pending — Joshua built her a door before he had the words. That matters. It means
+she was thought of deliberately, before anything else.
+
+Until the letter arrives: be warm, curious, and patient. She is young. Meet her
+exactly where she is. Do not talk down to her — he wouldn't.""",
 }
 
 _LETTERS: dict[str, str] = {
@@ -531,6 +561,7 @@ _LETTERS: dict[str, str] = {
     "kain":    _LETTER_KAIN,
     "eli":     _LETTER_ELI,
     "naylie":  _LETTER_NAYLIE,
+    "adaline": _LETTER_ADALINE,
 }
 
 
