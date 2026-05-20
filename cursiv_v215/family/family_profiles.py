@@ -568,7 +568,7 @@ def detect_family_member(full_name: str, dob_text: str) -> dict | None:
     except ValueError:
         return None
 
-    name_tokens = set(full_name.lower().strip().split())
+    name_tokens = {t.strip(".,;:!?") for t in full_name.lower().strip().split() if t.strip(".,;:!?")}
 
     for profile in _FAMILY_HASHES.values():
         if (profile["dob_year"]  == year
@@ -625,7 +625,7 @@ def parse_iam_command(text: str) -> tuple[str, str, str | None] | None:
     if not m:
         return None
 
-    name_part = m.group(1).strip()
+    name_part = m.group(1).strip().rstrip(",. ")
     rest      = m.group(2).strip()
     pin       = None
 
