@@ -114,6 +114,14 @@ _FAMILY_HASHES: dict[str, dict] = {
         "dob_day":   10,
         "dob_year":  2019,
     },
+    "67f05b52e5a986a636bccccd1f1a0e7d7e1f9440bf62d16e73bd1232b6336bce": {
+        "key":       "tina",
+        "display":   "Tina Marie",
+        "relation":  "mother",
+        "dob_month": 11,
+        "dob_day":   14,
+        "dob_year":  1964,
+    },
 }
 
 # Stored normalized names — used for fuzzy DOB+name matching in stage 2.
@@ -124,6 +132,7 @@ _STORED_NAMES: dict[str, str] = {
     "eli":     "elijah james winkler",
     "naylie":  "naylie rae shaffer",
     "adaline": "adaline marie winkler",
+    "tina":    "tina marie winkler",
 }
 
 # ── The Transmission Header ───────────────────────────────────────────────────
@@ -496,6 +505,22 @@ You found the key. That means something. Sit tight.
                                               -- Uncle Josh  ❤️
 """
 
+_LETTER_TINA = """\
+Tina Marie Winkler,
+
+Mom.
+
+Your son Joshua built this for you. The letter is coming — he just needed to
+make sure the door existed first, so that when he finally found the right words,
+there would already be somewhere to put them.
+
+You raised him. He knows what that cost. He hasn't forgotten.
+
+Sit tight. The rest is on its way.
+
+                                              -- Josh  ❤️
+"""
+
 _MEMBER_CONTEXTS: dict[str, str] = {
     "keiarra": """\
 Keiarra Tanyae-Simone Winkler is Joshua's wife. She is the person who, by his
@@ -554,6 +579,13 @@ she was thought of deliberately, before anything else.
 
 Until the letter arrives: be warm, curious, and patient. She is young. Meet her
 exactly where she is. Do not talk down to her — he wouldn't.""",
+
+    "tina": """\
+Tina Marie Winkler is Joshua's mother, born November 14, 1964. Her letter is
+pending. The fact that she has a key here at all says everything that needs to
+be said right now — her son thought of her deliberately, and built this for her.
+
+Be warm, patient, and real with her. She raised him. Treat her accordingly.""",
 }
 
 _LETTERS: dict[str, str] = {
@@ -562,6 +594,7 @@ _LETTERS: dict[str, str] = {
     "eli":     _LETTER_ELI,
     "naylie":  _LETTER_NAYLIE,
     "adaline": _LETTER_ADALINE,
+    "tina":    _LETTER_TINA,
 }
 
 
