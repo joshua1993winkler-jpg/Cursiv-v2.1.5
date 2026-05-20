@@ -609,25 +609,30 @@ def get_jw_header() -> str:
 
 def parse_iam_command(text: str) -> tuple[str, str, str | None] | None:
     """
-    Parse 'I am [Full Name] born [Date][, PIN]' from a babel input string.
+    Parse family activation from a babel input string.
 
-    PIN is optional on first call (setup flow). On return calls, the PIN
-    should be appended after a comma: 'born 9-12-1995, 1234'
-
-    Ambiguity rule: trailing ', NNNN' is treated as a PIN only when the
-    date portion that remains still parses to a complete date (has a year).
-    This prevents mistaking 'born september 12, 1995' for date='september 12'
-    plus pin='1995'.
+    Accepted formats:
+      i am [Full Name] born [Date][, PIN]
+      i am [Full Name], [Date][, PIN]      ← comma separator, no 'born' required
 
     Returns (full_name, date_text, pin_or_None) or None if no match.
     """
-    m = re.match(r"^i\s+am\s+(.+?)\s+born\s+(.+)$", text.strip(), re.IGNORECASE)
-    if not m:
-        return None
+    t = text.strip()
 
-    name_part = m.group(1).strip().rstrip(",. ")
-    rest      = m.group(2).strip()
-    pin       = None
+    # Pattern 1: "i am [name] born [date]"
+    m = re.match(r"^i\s+am\s+(.+?)\s+born\s+(.+)$", t, re.IGNORECASE)
+    if m:
+        name_part = m.group(1).strip().rstrip(",. ")
+        rest      = m.group(2).strip()
+    else:
+        # Pattern 2: "i am [name], [date]" — lazy match stops at first comma
+        m2 = re.match(r"^i\s+am\s+(.+?),\s+(.+)$", t, re.IGNORECASE)
+        if not m2:
+            return None
+        name_part = m2.group(1).strip().rstrip(",. ")
+        rest      = m2.group(2).strip()
+
+    pin = None
 
     # Try to split off a trailing comma-separated PIN (special chars, 2–8 chars)
     _pin_chars_re = r"[!@#$%^&*~\-+=?/]{2,8}"
