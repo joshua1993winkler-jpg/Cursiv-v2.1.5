@@ -1379,8 +1379,18 @@ def main() -> None:
                     _session_append_cli(prompt, result, "hermes_agent")
             continue
 
-        elif cmd == "council" or cmd.startswith("council "):
-            _raw_question = raw[8:].strip() if cmd.startswith("council ") else ""
+        elif (cmd == "council" or cmd.startswith("council ")
+              or cmd == "/deliberate" or cmd.startswith("/deliberate ")
+              or cmd == "/full" or cmd.startswith("/full ")):
+            _force_full_council = cmd.startswith("/deliberate") or cmd.startswith("/full")
+            if cmd.startswith("council "):
+                _raw_question = raw[8:].strip()
+            elif cmd.startswith("/deliberate "):
+                _raw_question = raw[12:].strip()
+            elif cmd.startswith("/full "):
+                _raw_question = raw[6:].strip()
+            else:
+                _raw_question = ""
             if not _raw_question:
                 print(
                     f"  {LGOLD}Usage:{RESET}  {DIM}council <question>{RESET}\n"
@@ -1389,7 +1399,10 @@ def main() -> None:
                 )
             elif _ASYNC_COUNCIL_OK:
                 # ── Option C — async parallel council with streaming ──────
-                result = _async_council_run(_raw_question, cfg)
+                result = _async_council_run(
+                    _raw_question, cfg,
+                    force_full=True if _force_full_council else None,
+                )
                 if result is not None:
                     _last_council_synthesis = result.synthesis   # stored for blast
                     cfg["_last_council_synthesis"] = result.synthesis
@@ -1429,6 +1442,7 @@ def main() -> None:
                     except KeyboardInterrupt:
                         print(f"\n  {DIM}[interrupted]{RESET}")
                     print()
+                    cfg["_last_council_synthesis"] = full   # stored for blast
                     _session_append_cli(_raw_question, full, "group_discovery")
                     if _STRAND_OK and full and len(full) > 200:
                         _strand_save(
