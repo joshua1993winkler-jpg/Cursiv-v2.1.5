@@ -5,8 +5,7 @@ COPY cursiv_v215/__init__.py ./cursiv_v215/__init__.py
 RUN pip install --no-cache-dir \
     fastapi==0.111.0 \
     "uvicorn[standard]==0.29.0" \
-    bcrypt==4.1.3 \
-    "python-jose[cryptography]==3.3.0" \
+    PyJWT==2.8.0 \
     pydantic==2.7.1
 EXPOSE 8080
 CMD uvicorn cursiv_v215.web.app:app --host 0.0.0.0 --port ${PORT:-8080}
