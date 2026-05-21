@@ -6,6 +6,11 @@ Modules:
   obfuscation      — session-local adaptive label shuffling (transparent to user)
   decoys           — isolated honeytrap agents activated on detected probing
 """
+
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
 from .temple_guardian import scan, scan_cli, receive_fragment, get_session_threat_level, unlock_owner_session, is_owner_session
 from .obfuscation import session_fingerprint, get_route_label
 from .decoys import get_decoy_response

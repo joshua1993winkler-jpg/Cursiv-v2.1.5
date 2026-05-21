@@ -12,6 +12,11 @@ other UTF-8 script — same code, zero configuration.
 
 from __future__ import annotations
 
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
+
 # Sent to the LLM with the already-decoded text.
 # Python handles the binary → Unicode decode (always perfect, even for 3-byte
 # scripts like Japanese/Chinese/Arabic). The LLM only needs to detect + translate.

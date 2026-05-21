@@ -5,6 +5,11 @@ and chat_app can surface live status without importing runtime modules directly.
 """
 from __future__ import annotations
 
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
+
 import json
 import logging
 from datetime import datetime

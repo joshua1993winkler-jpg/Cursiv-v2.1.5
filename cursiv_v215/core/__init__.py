@@ -1,3 +1,8 @@
+
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
 from .agent import AgentState, CursivAgent
 from .constitution import get_constitution
 from .memory import get_memory

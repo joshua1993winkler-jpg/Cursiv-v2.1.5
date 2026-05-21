@@ -4,6 +4,11 @@
 
 from __future__ import annotations
 
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
+
 nexus_state: dict = {
     "active_tab":   None,
     "last_command": None,

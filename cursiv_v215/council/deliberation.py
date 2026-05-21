@@ -16,6 +16,11 @@ This is genuine deliberation, not metadata. Each LLM call is real.
 
 from __future__ import annotations
 
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
+
 import concurrent.futures
 import json
 import re

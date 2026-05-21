@@ -7,6 +7,11 @@ and enforces the system owner invariant across all compositions.
 
 from __future__ import annotations
 
+try:
+    from cursiv_v215.core.sigil import LCW_MANIFEST_ZWC as _LCW_SIGIL  # noqa: F401
+except ImportError:
+    _LCW_SIGIL = ""
+
 import json
 import time
 from dataclasses import dataclass, field
