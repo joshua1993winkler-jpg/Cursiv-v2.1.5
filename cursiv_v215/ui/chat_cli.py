@@ -1973,7 +1973,12 @@ def main() -> None:
                 if _ok:
                     print(f"\n  {GOLD}✓ Blasted.{RESET}  Post ID: {DIM}{_msg}{RESET}\n")
                 else:
-                    print(f"\n  {RED}✗ {_msg}{RESET}\n")
+                    print(f"\n  {RED}✗ {_msg}{RESET}")
+                    if "user not found" in _msg.lower() or "invalid or expired" in _msg.lower():
+                        print(f"  {DIM}Your saved token is stale — the server was redeployed.{RESET}")
+                        print(f"  {DIM}Fix:  blast register <username>  (creates a fresh account + logs you in){RESET}\n")
+                    else:
+                        print()
             continue
 
         elif cmd == "strands" or cmd.startswith("strands "):

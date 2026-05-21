@@ -104,7 +104,7 @@ class BlastRequest(BaseModel):
         v = v.strip()
         if not v:
             raise ValueError("Text cannot be empty")
-        return v[:500]
+        return v[:2000]
 
     @field_validator("source")
     @classmethod

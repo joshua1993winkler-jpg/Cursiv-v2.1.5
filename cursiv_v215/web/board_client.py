@@ -111,7 +111,7 @@ def board_blast(text: str, source: str = "council") -> tuple[bool, str]:
         return False, "not logged in — run: blast login"
 
     try:
-        body = json.dumps({"text": text[:500], "source": source}).encode()
+        body = json.dumps({"text": text[:2000], "source": source}).encode()
         req  = urllib.request.Request(
             f"{_BOARD_URL}/api/blast",
             data=body,
