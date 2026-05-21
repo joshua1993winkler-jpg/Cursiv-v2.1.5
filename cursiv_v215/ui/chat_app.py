@@ -1366,6 +1366,9 @@ def _call_ollama(messages: list[dict], max_tokens: int = 1200) -> Generator[str,
             "num_ctx": 6144,
         },
     }).encode()
+    if not _ensure_ollama():
+        yield "\n[Ollama not found. Install from https://ollama.com then run: ollama pull llama3.1]"
+        return
     try:
         req = urllib.request.Request(OLLAMA_URL, data=payload,
                                      headers={"Content-Type": "application/json"})
@@ -1379,6 +1382,43 @@ def _call_ollama(messages: list[dict], max_tokens: int = 1200) -> Generator[str,
                     break
     except Exception as e:
         yield f"\n[Ollama unavailable: {e}]"
+
+
+def _ollama_running() -> bool:
+    try:
+        urllib.request.urlopen(OLLAMA_TAGS_URL, timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+def _ensure_ollama() -> bool:
+    """Start Ollama in the background if it isn't running. Returns True once reachable."""
+    import subprocess as _sp
+    import time as _time
+    import shutil as _sh
+
+    if _ollama_running():
+        return True
+
+    if not _sh.which("ollama"):
+        return False  # not installed — nothing to start
+
+    try:
+        _sp.Popen(
+            ["ollama", "serve"],
+            stdout=_sp.DEVNULL,
+            stderr=_sp.DEVNULL,
+            creationflags=_sp.CREATE_NO_WINDOW if hasattr(_sp, "CREATE_NO_WINDOW") else 0,
+        )
+    except Exception:
+        return False
+
+    for _ in range(15):
+        _time.sleep(1)
+        if _ollama_running():
+            return True
+    return False
 
 
 def _ollama_pulled_models() -> set[str]:
