@@ -219,7 +219,7 @@ const SETT_KEY = 'cursiv_settings_v1';
 
 // ── Settings ──────────────────────────────────────────────
 function getSett() {
-  return { ollamaUrl: 'http://localhost:11434', model: 'llama3.2',
+  return { ollamaUrl: 'http://localhost:11434', model: 'llama3.2', contextLength: 8192,
            ...JSON.parse(localStorage.getItem(SETT_KEY) || '{}') };
 }
 function saveSett(s) { localStorage.setItem(SETT_KEY, JSON.stringify(s)); }
@@ -363,6 +363,7 @@ async function send() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model:    s.model,
+        options:  { num_ctx: s.contextLength || 8192 },
         messages: [{ role: 'system', content: buildSystem() }, ..._hist],
         stream:   true,
       }),

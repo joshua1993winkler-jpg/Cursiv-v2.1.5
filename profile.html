@@ -189,6 +189,16 @@ main { max-width: 720px; margin: 0 auto; padding: 32px 24px 64px; }
       <div class="field-note">Any model you have pulled via <code style="color:var(--lgold)">ollama pull &lt;name&gt;</code></div>
     </div>
     <div class="field">
+      <label>CONTEXT LENGTH</label>
+      <select id="f-ctx">
+        <option value="4096">4k — light (low RAM, fast)</option>
+        <option value="8192" selected>8k — standard (recommended)</option>
+        <option value="16384">16k — extended (needs 16GB+ RAM or GPU)</option>
+        <option value="32768">32k — deep (high-end hardware only)</option>
+      </select>
+      <div class="field-note">How much conversation the model holds in memory at once. 8k is right for most hardware.</div>
+    </div>
+    <div class="field">
       <label>API KEY <span style="color:var(--dim)">(optional — coming soon)</span></label>
       <input type="password" id="f-apikey" placeholder="sk-… or anthropic key — unlocks cloud models" disabled>
       <div class="field-note">When set, cloud models become available as an upgrade. Ollama remains the default.</div>
@@ -218,7 +228,7 @@ const BOARD_U  = 'cursiv_username';
 // ── Utils ─────────────────────────────────────────────────
 function getMem()   { return JSON.parse(localStorage.getItem(MEM_KEY)  || '[]'); }
 function saveMem(m) { localStorage.setItem(MEM_KEY, JSON.stringify(m)); renderMem(); }
-function getSett()  { return { ollamaUrl: 'http://localhost:11434', model: 'llama3.2', ...JSON.parse(localStorage.getItem(SETT_KEY) || '{}') }; }
+function getSett()  { return { ollamaUrl: 'http://localhost:11434', model: 'llama3.2', contextLength: 8192, ...JSON.parse(localStorage.getItem(SETT_KEY) || '{}') }; }
 function saveSett(s){ localStorage.setItem(SETT_KEY, JSON.stringify(s)); }
 
 function toast(msg) {
@@ -323,12 +333,14 @@ function loadSettings() {
   const s = getSett();
   document.getElementById('f-url').value   = s.ollamaUrl;
   document.getElementById('f-model').value = s.model;
+  document.getElementById('f-ctx').value   = String(s.contextLength || 8192);
 }
 
 function saveSettings() {
   const s = getSett();
-  s.ollamaUrl = document.getElementById('f-url').value.trim()   || 'http://localhost:11434';
-  s.model     = document.getElementById('f-model').value.trim() || 'llama3.2';
+  s.ollamaUrl      = document.getElementById('f-url').value.trim()   || 'http://localhost:11434';
+  s.model          = document.getElementById('f-model').value.trim() || 'llama3.2';
+  s.contextLength  = parseInt(document.getElementById('f-ctx').value) || 8192;
   saveSett(s); toast('Settings saved.');
 }
 
