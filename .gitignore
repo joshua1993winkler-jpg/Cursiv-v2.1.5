@@ -1,6 +1,9 @@
 # API keys — never commit these
 secrets.bat
 
+# Board database — local only, Railway gets its own
+cursiv_v215/web/board.db
+
 # Python
 __pycache__/
 **/__pycache__/
