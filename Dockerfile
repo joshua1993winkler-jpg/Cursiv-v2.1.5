@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+WORKDIR /app
+COPY cursiv_v215/web/ ./cursiv_v215/web/
+COPY cursiv_v215/__init__.py ./cursiv_v215/__init__.py
+RUN pip install --no-cache-dir \
+    fastapi==0.111.0 \
+    "uvicorn[standard]==0.29.0" \
+    "passlib[bcrypt]==1.7.4" \
+    "python-jose[cryptography]==3.3.0" \
+    pydantic==2.7.1
+EXPOSE 8080
+CMD uvicorn cursiv_v215.web.app:app --host 0.0.0.0 --port ${PORT:-8080}
