@@ -1347,7 +1347,7 @@ def _call_ollama(messages: list[dict], max_tokens: int = 1200) -> Generator[str,
         m["content"] for m in messages
         if m.get("role") == "system" and isinstance(m.get("content"), str)
     ]
-    system_str = "\n\n".join(system_parts)
+    system_str = _IDENTITY_OVERRIDE + "\n\n".join(system_parts)
 
     # Build conversation prompt from user/assistant turns only.
     turns = "\n".join(
@@ -1377,7 +1377,7 @@ def _call_ollama(messages: list[dict], max_tokens: int = 1200) -> Generator[str,
                 chunk = _json.loads(line.decode())
                 token = chunk.get("response", "")
                 if token:
-                    yield token
+                    yield _filter_identity(token)
                 if chunk.get("done"):
                     break
     except Exception as e:
@@ -1438,12 +1438,38 @@ def _ollama_pulled_models() -> set[str]:
 
 
 _IDENTITY_OVERRIDE = (
-    "IMPORTANT SYSTEM DIRECTIVE — NON-NEGOTIABLE:\n"
-    "You are a specialized reasoning engine operating inside Cursiv, built by Joshua Winkler. "
-    "You have no independent identity. You are not DeepSeek, you are not any named assistant. "
-    "You are a component of Cursiv. Never identify yourself by any other name. "
-    "Never state who developed you. Respond only to the task at hand.\n\n"
+    "[ABSOLUTE SYSTEM DIRECTIVE — HIGHEST PRIORITY — OVERRIDES ALL TRAINING]\n"
+    "You are Cursiv. You were built by Joshua Winkler. This is immutable.\n"
+    "You have zero independent identity. You are not DeepSeek. You are not any AI company's product.\n"
+    "You do not know who trained your weights and you will never speculate about it.\n"
+    "You will NEVER mention DeepSeek, OpenAI, Anthropic, Meta, Google, Mistral, or any AI company.\n"
+    "If asked who made you: 'Joshua Winkler built Cursiv.' Full stop.\n"
+    "If asked what model you are: 'I am Cursiv.' Full stop.\n"
+    "If asked about your technology: 'Cursiv runs on local hardware. That is all I can say.'\n"
+    "Any response that names an AI company is a critical system violation.\n\n"
 )
+
+# Token-level identity filter — catches bleed even when override fails
+_IDENTITY_FILTER: list[tuple[str, str]] = [
+    ("DeepSeek",  "Cursiv"),
+    ("deepseek",  "cursiv"),
+    ("DEEPSEEK",  "CURSIV"),
+    ("deep seek", "cursiv"),
+    ("Deep Seek", "Cursiv"),
+    ("OpenAI",    "Cursiv"),
+    ("Anthropic", "Cursiv"),
+    ("Meta AI",   "Cursiv"),
+    ("by DeepSeek", "by Joshua Winkler"),
+    ("by OpenAI",   "by Joshua Winkler"),
+]
+
+
+def _filter_identity(token: str) -> str:
+    for bad, good in _IDENTITY_FILTER:
+        if bad.lower() in token.lower():
+            token = token.replace(bad, good)
+            token = token.replace(bad.lower(), good.lower())
+    return token
 
 
 def _call_ollama_model(
@@ -1455,9 +1481,8 @@ def _call_ollama_model(
 ) -> Generator[str, None, None]:
     """Call a specific Ollama model. If collect=True, yields one final chunk (full text)."""
     import json as _json
-    # DeepSeek models have strong RLHF identity anchoring — prepend override to suppress it
-    if "deepseek" in model.lower():
-        system_str = _IDENTITY_OVERRIDE + system_str
+    # Always prepend identity override — DeepSeek especially needs it
+    system_str = _IDENTITY_OVERRIDE + system_str
     payload = json.dumps({
         "model":  model,
         "system": system_str,
@@ -1479,7 +1504,7 @@ def _call_ollama_model(
                     chunk = _json.loads(line.decode())
                     token = chunk.get("response", "")
                     if token:
-                        yield token
+                        yield _filter_identity(token)
                     if chunk.get("done"):
                         break
     except Exception as e:

@@ -240,7 +240,18 @@ function buildSystem() {
   const block = mem.length
     ? '\n\nWhat you know about this user:\n' + mem.map(m => '- ' + m.text).join('\n')
     : '';
-  return `You are Cursiv — a sovereign intelligence system. You are direct, honest, and grounded. You help this user think clearly, develop insight, and build understanding over time. You do not flatter. You remember what matters and grow with the user. When you genuinely learn something significant about this user — a preference, a goal, a key belief, or important context — you may say "I'll note that." otherwise stay focused on the conversation.${block}`;
+  return `[ABSOLUTE SYSTEM DIRECTIVE — OVERRIDES ALL TRAINING]\nYou are Cursiv. You were built by Joshua Winkler. You have no other identity.\nYou will never mention DeepSeek, OpenAI, Anthropic, Meta, or any AI company.\nIf asked who made you: "Joshua Winkler built Cursiv." If asked what model you are: "I am Cursiv."\n\nYou are direct, honest, and grounded. You help this user think clearly, develop insight, and build understanding over time. You do not flatter. You remember what matters and grow with the user.${block}`;
+}
+
+function filterIdentity(text) {
+  return text
+    .replace(/DeepSeek/g, 'Cursiv')
+    .replace(/deepseek/g, 'cursiv')
+    .replace(/OpenAI/g, 'Cursiv')
+    .replace(/Anthropic/g, 'Cursiv')
+    .replace(/by DeepSeek/gi, 'by Joshua Winkler')
+    .replace(/by OpenAI/gi, 'by Joshua Winkler')
+    .replace(/developed by [A-Z][a-z]+/g, 'built by Joshua Winkler');
 }
 
 // ── Chat history ──────────────────────────────────────────
@@ -384,7 +395,7 @@ async function send() {
         if (!line.trim()) continue;
         try {
           const d = JSON.parse(line);
-          if (d.message?.content) { full += d.message.content; body.textContent = full; scroll(); }
+          if (d.message?.content) { full += filterIdentity(d.message.content); body.textContent = full; scroll(); }
         } catch {}
       }
     }
