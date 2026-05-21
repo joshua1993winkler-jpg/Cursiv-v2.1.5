@@ -37,6 +37,12 @@ try:
 except ImportError:
     _LCW_SIGIL = ""
 
+try:
+    from cursiv_v215.guardian.identity_core import wrap as _identity_wrap, filter_text as _id_filter
+except ImportError:
+    def _identity_wrap(s: str) -> str: return s
+    def _id_filter(s: str) -> str: return s
+
 import asyncio
 import json
 import sys
@@ -347,7 +353,7 @@ async def _synthesize(
         if full_mode else ""
     )
 
-    prompt = (
+    prompt = _identity_wrap(
         f"You are the Synthesis layer of Cursiv — a sovereign, local-first intelligence "
         f"built for deep deliberation across multiple council perspectives.\n\n"
         f"The system owner asked:\n{query}\n\n"

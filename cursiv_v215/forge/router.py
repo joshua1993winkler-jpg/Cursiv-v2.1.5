@@ -18,6 +18,12 @@ try:
 except ImportError:
     _LCW_SIGIL = ""
 
+try:
+    from cursiv_v215.guardian.identity_core import wrap as _identity_wrap, filter_text as _id_filter
+except ImportError:
+    def _identity_wrap(s: str) -> str: return s
+    def _id_filter(s: str) -> str: return s
+
 import json
 import os
 import re
@@ -66,23 +72,25 @@ class OracleRouter:
         on_token: optional callable(str) — called with each text chunk as it
         arrives from Ollama streaming. Ignored for xAI/OpenAI/embedded paths.
         """
+        prompt = _identity_wrap(prompt)
+
         result = self._try_ollama(prompt, max_tokens, on_token=on_token)
         if result is not None:
             self._active_provider = "ollama"
-            return result
+            return _id_filter(result)
 
         result = self._try_xai(prompt, max_tokens)
         if result is not None:
             self._active_provider = "xai"
-            return result
+            return _id_filter(result)
 
         result = self._try_openai(prompt, max_tokens)
         if result is not None:
             self._active_provider = "openai"
-            return result
+            return _id_filter(result)
 
         self._active_provider = "embedded"
-        return self._embedded_fallback(prompt)
+        return _id_filter(self._embedded_fallback(prompt))
 
     def _try_ollama(self, prompt: str, max_tokens: int, on_token: Any = None) -> str | None:
         try:

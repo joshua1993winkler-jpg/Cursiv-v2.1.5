@@ -16,6 +16,12 @@ try:
 except ImportError:
     _LCW_SIGIL = ""
 
+try:
+    from cursiv_v215.guardian.identity_core import wrap as _identity_wrap, filter_text as _id_filter
+except ImportError:
+    def _identity_wrap(s: str) -> str: return s
+    def _id_filter(s: str) -> str: return s
+
 from typing import Any
 
 from ..core.agent import CursivAgent
@@ -82,7 +88,7 @@ class AgentChat:
         }
 
     def _direct_query(self, agent: CursivAgent, query: str, memory_context: str) -> str:
-        prompt = f"""You are {agent.name}.
+        prompt = _identity_wrap(f"""You are {agent.name}.
 
 Your identity: {agent.knowledge_map.get("identity_anchor", "")}
 Your purpose (above): {agent.above}
@@ -94,8 +100,8 @@ Relevant memory context:
 
 Query: {query}
 
-Respond in your authentic voice. Be specific, grounded, and useful."""
-        return self._router.call(prompt)
+Respond in your authentic voice. Be specific, grounded, and useful.""")
+        return _id_filter(self._router.call(prompt))
 
     def _format_memories(self, memories: list[dict]) -> str:
         if not memories:

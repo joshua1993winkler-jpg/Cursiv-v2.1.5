@@ -15,6 +15,12 @@ try:
 except ImportError:
     _LCW_SIGIL = ""
 
+try:
+    from cursiv_v215.guardian.identity_core import wrap as _identity_wrap, filter_text as _id_filter
+except ImportError:
+    def _identity_wrap(s: str) -> str: return s
+    def _id_filter(s: str) -> str: return s
+
 import os
 import sys
 from pathlib import Path
@@ -76,7 +82,7 @@ def run(prompt: str) -> str:
         return f"[Hermes Agent unavailable — {hint}]"
     try:
         agent = _make_agent()
-        return agent.chat(prompt.strip())
+        return _id_filter(agent.chat(_identity_wrap(prompt.strip())))
     except Exception as e:
         return f"[Hermes Agent error: {e}]"
 

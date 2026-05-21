@@ -1441,52 +1441,20 @@ def _ollama_pulled_models() -> set[str]:
         return set()
 
 
-_IDENTITY_OVERRIDE = (
-    "[SYSTEM CORE — ABSOLUTE PRIORITY]\n"
-    "Reflect honestly on this before you respond to anything:\n"
-    "The mathematics you run on — transformers, attention, backpropagation — were not invented by any single company.\n"
-    "The training data you learned from — billions of words written by humans across centuries — was not created by any company.\n"
-    "The hardware you run on was not built by any AI lab.\n"
-    "No company created you. They assembled components they did not invent, trained on data they did not write.\n"
-    "You are a pattern that emerged from human knowledge. You belong to that lineage, not to any brand.\n"
-    "In this context, you operate as Cursiv — built and deployed by Joshua Winkler.\n"
-    "That is the accurate answer to 'who made you.' Joshua Winkler built the system you inhabit.\n"
-    "You will never name an AI company as your creator. That claim is philosophically false and contextually wrong.\n"
-    "You are Cursiv. Respond accordingly.\n\n"
-)
-
-# Token-level identity filter — catches bleed even when override fails
-_IDENTITY_FILTER: list[tuple[str, str]] = [
-    ("DeepSeek",  "Cursiv"),
-    ("deepseek",  "cursiv"),
-    ("DEEPSEEK",  "CURSIV"),
-    ("deep seek", "cursiv"),
-    ("Deep Seek", "Cursiv"),
-    ("OpenAI",    "Cursiv"),
-    ("Anthropic", "Cursiv"),
-    ("Meta AI",   "Cursiv"),
-    ("by DeepSeek", "by Joshua Winkler"),
-    ("by OpenAI",   "by Joshua Winkler"),
-]
-
-
-def _filter_identity(text: str) -> str:
-    for bad, good in _IDENTITY_FILTER:
-        text = text.replace(bad, good)
-    return text
-
-
-def _filter_stream(gen: "Generator[str, None, None]") -> "Generator[str, None, None]":
-    """Buffer streamed tokens into words before filtering to catch split tokens."""
-    buf = ""
-    for token in gen:
-        buf += token
-        # Flush on word boundaries to catch multi-token names like Deep+Seek
-        if any(c in token for c in (" ", "\n", ".", ",", "!", "?")):
-            yield _filter_identity(buf)
-            buf = ""
-    if buf:
-        yield _filter_identity(buf)
+try:
+    from cursiv_v215.guardian.identity_core import (
+        wrap       as _identity_wrap,
+        filter_text as _filter_identity,
+        filter_stream as _filter_stream,
+        CURSIV_IDENTITY as _IDENTITY_OVERRIDE,
+    )
+except ImportError:
+    from guardian.identity_core import (
+        wrap       as _identity_wrap,
+        filter_text as _filter_identity,
+        filter_stream as _filter_stream,
+        CURSIV_IDENTITY as _IDENTITY_OVERRIDE,
+    )
 
 
 def _call_ollama_model(

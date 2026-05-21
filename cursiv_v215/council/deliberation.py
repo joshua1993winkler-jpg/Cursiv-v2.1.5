@@ -21,6 +21,12 @@ try:
 except ImportError:
     _LCW_SIGIL = ""
 
+try:
+    from cursiv_v215.guardian.identity_core import wrap as _identity_wrap, filter_text as _id_filter
+except ImportError:
+    def _identity_wrap(s: str) -> str: return s
+    def _id_filter(s: str) -> str: return s
+
 import concurrent.futures
 import json
 import re
@@ -218,7 +224,7 @@ class CouncilDeliberation:
 
     def _advise(self, council_agent: CouncilAgent, query: str, context: str, prior_wisdom: str = "") -> str:
         wisdom_block = f"\n{prior_wisdom}\n" if prior_wisdom else ""
-        prompt = f"""You are {council_agent.name}, a council agent with this role: {council_agent.role}
+        prompt = _identity_wrap(f"""You are {council_agent.name}, a council agent with this role: {council_agent.role}
 
 Your question is always: "{council_agent.question}"
 
@@ -245,7 +251,7 @@ This is an internal advisory — it will inform but not directly appear in the u
         context: str,
         all_perspectives: str,
     ) -> str:
-        prompt = f"""You are {council_agent.name}, a synthesizing council agent with this role: {council_agent.role}
+        prompt = _identity_wrap(f"""You are {council_agent.name}, a synthesizing council agent with this role: {council_agent.role}
 
 Your question is always: "{council_agent.question}"
 
