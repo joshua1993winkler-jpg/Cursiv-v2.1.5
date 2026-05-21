@@ -347,6 +347,34 @@ except Exception:
     def _strand_terr_counts() -> dict:           return {}
     def _strand_territories() -> dict:           return {}
 
+# ── Postal — sealed encrypted letters ────────────────────────────────────────
+try:
+    from cursiv_v215.postal.sealed_store import (
+        seal_letter        as _postal_seal,
+        open_letter        as _postal_open,
+        get_sealed_entry   as _postal_entry,
+        letters_for        as _postal_for,
+        letters_from       as _postal_from,
+        all_letters        as _postal_all,
+        delete_sealed      as _postal_delete,
+        export_sealpack    as _postal_export,
+        import_sealpack    as _postal_import,
+    )
+    from cursiv_v215.postal.council_reader import council_walkthrough as _postal_council
+    _POSTAL_OK = True
+except Exception:
+    _POSTAL_OK = False
+    def _postal_seal(*a, **kw):      return ""
+    def _postal_open(i):             return None
+    def _postal_entry(i):            return None
+    def _postal_for(k):              return []
+    def _postal_from(k):             return []
+    def _postal_all():               return []
+    def _postal_delete(i):           return False
+    def _postal_export(i):           return None
+    def _postal_import(f, p):        return None
+    def _postal_council(i, u, c, **kw): return "[Postal module unavailable]"
+
 # ── Async Council — Option C parallel deliberation ───────────────────────────
 try:
     from cursiv_v215.council.async_council import (
@@ -1421,6 +1449,197 @@ def main() -> None:
                 print(f"  {GOLD}Anchored. This spike will be kept.{RESET}")
             else:
                 print(f"  {DIM}No session history to anchor.{RESET}")
+            continue
+
+        # ── Postal — sealed encrypted letters ───────────────────────────────
+        elif cmd.startswith("write to ") or cmd == "write to":
+            if not _POSTAL_OK:
+                print(f"  {RED}Postal module unavailable.{RESET}")
+                continue
+            _postal_user = cfg.get("postal_user", "joshua")
+            _recipient   = raw[9:].strip() if cmd.startswith("write to ") else ""
+            _hint        = ""
+            if " hint " in _recipient:
+                _recipient, _hint = _recipient.split(" hint ", 1)
+            _recipient = _recipient.strip().lower().replace(" ", "")
+            if not _recipient:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}write to <name>  [hint <public hint>]{RESET}")
+                continue
+            # Composition mode
+            print(f"\n  {GOLD}╔{'═'*58}╗{RESET}")
+            print(f"  {GOLD}║{RESET}  {BOLD}⬡ SEALED LETTER{RESET}  {DIM}to: {_recipient}  ·  machine-bound{RESET}  {GOLD}║{RESET}")  # noqa
+            print(f"  {GOLD}║{RESET}  {DIM}/seal to encrypt  ·  /discard to cancel{RESET}  {GOLD}║{RESET}")
+            print(f"  {GOLD}╚{'═'*58}╝{RESET}\n")
+            _lines: list[str] = []
+            try:
+                while True:
+                    _line = input(f"  {DIM}·{RESET} ")
+                    if _line.strip() == "/seal":
+                        break
+                    if _line.strip() == "/discard":
+                        _lines = []
+                        print(f"  {DIM}[discarded]{RESET}")
+                        break
+                    _lines.append(_line)
+            except KeyboardInterrupt:
+                _lines = []
+                print(f"\n  {DIM}[discarded]{RESET}")
+            if _lines:
+                _content = "\n".join(_lines)
+                # Sealing progress display
+                _steps = {
+                    "anchor":  f"  {DIM}layer 1 · machine anchor    · 50,000 iter{RESET}",
+                    "stream":  f"  {DIM}layer 2 · identity binding  · 100,000 iter{RESET}",
+                    "xor":     f"  {DIM}layer 3 · stream derivation · 200,000 iter{RESET}",
+                    "hmac":    f"  {DIM}XOR stream cipher · keystream derived{RESET}",
+                    "encode":  f"  {DIM}HMAC-SHA256 · authentication tag{RESET}",
+                    "index":   f"  {DIM}Cursiv alphabet · alien transcription · ZWC sig{RESET}",
+                }
+                print(f"  {GOLD}⬡ SEALING {'·'*44}{RESET}")
+                def _pcb(step: str) -> None:
+                    label = _steps.get(step, f"  {DIM}{step}{RESET}")
+                    print(f"{label}  {GREEN}✓{RESET}")
+                _lid = _postal_seal(
+                    sender_key=_postal_user,
+                    sender_display=_postal_user.title(),
+                    recipient_key=_recipient,
+                    recipient_display=_recipient.title(),
+                    content=_content,
+                    hint=_hint,
+                    progress_cb=_pcb,
+                )
+                print(f"  {GOLD}⬡ SEALED {'·'*45}{RESET}")
+                print(f"  {DIM}id:       {RESET}{LGOLD}{_lid}{RESET}")
+                print(f"  {DIM}for:      {RESET}{_recipient}")
+                print(f"  {DIM}readable: on this machine only{RESET}\n")
+            continue
+
+        elif cmd == "letters" or cmd in ("letters for me", "letters from me"):
+            if not _POSTAL_OK:
+                print(f"  {RED}Postal module unavailable.{RESET}")
+                continue
+            _postal_user = cfg.get("postal_user", "joshua")
+            print()
+            if cmd == "letters for me":
+                _llist = _postal_for(_postal_user)
+                print(f"  {GOLD}⬡ LETTERS FOR {_postal_user.upper()}{RESET}")
+            elif cmd == "letters from me":
+                _llist = _postal_from(_postal_user)
+                print(f"  {GOLD}⬡ LETTERS FROM {_postal_user.upper()}{RESET}")
+            else:
+                _llist = _postal_all()
+                print(f"  {GOLD}⬡ ALL SEALED LETTERS{RESET}")
+            if not _llist:
+                print(f"  {DIM}No sealed letters found.{RESET}")
+            else:
+                for _e in _llist:
+                    _read_badge = f"{GREEN}read{RESET}" if _e.get("read") else f"{GOLD}unread{RESET}"
+                    _hint_str   = f"  {DIM}{_e['hint']}{RESET}" if _e.get("hint") else ""
+                    print(
+                        f"  {LGOLD}{_e['id']}{RESET}  "
+                        f"{DIM}{_e.get('from_display','?')}{RESET} → "
+                        f"{_e.get('for_display','?')}  "
+                        f"{DIM}{_e.get('sealed','')[:10]}{RESET}  "
+                        f"{_read_badge}{_hint_str}"
+                    )
+            print()
+            continue
+
+        elif cmd.startswith("open letter ") or cmd.startswith("letter "):
+            if not _POSTAL_OK:
+                print(f"  {RED}Postal module unavailable.{RESET}")
+                continue
+            _lid = (raw[12:] if cmd.startswith("open letter ") else raw[7:]).strip()
+            if not _lid:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}open letter <id>{RESET}")
+                continue
+            _entry = _postal_entry(_lid)
+            if not _entry:
+                print(f"  {RED}Letter {_lid} not found.{RESET}")
+                continue
+            print(f"\n  {DIM}⬡ opening seal · deriving keys…{RESET}")
+            _text = _postal_open(_lid)
+            if _text is None:
+                print(f"  {RED}⬡ Decryption failed.{RESET}  {DIM}This seal cannot be opened on this machine.{RESET}")
+                continue
+            print(f"\n  {GOLD}╔{'═'*58}╗{RESET}")
+            print(f"  {GOLD}║{RESET}  {DIM}from:{RESET} {_entry.get('from_display','?')}  "
+                  f"{DIM}to:{RESET} {_entry.get('for_display','?')}  "
+                  f"{DIM}{_entry.get('sealed','')[:10]}{RESET}  {GOLD}║{RESET}")
+            if _entry.get("hint"):
+                print(f"  {GOLD}║{RESET}  {DIM}hint: {_entry['hint']}{RESET}  {GOLD}║{RESET}")
+            print(f"  {GOLD}╚{'═'*58}╝{RESET}\n")
+            for _para in _text.split("\n"):
+                print(f"  {_para}")
+            print()
+            continue
+
+        elif cmd.startswith("council letter "):
+            if not _POSTAL_OK:
+                print(f"  {RED}Postal module unavailable.{RESET}")
+                continue
+            _lid = raw[15:].strip()
+            _postal_user = cfg.get("postal_user", "joshua")
+            if not _lid:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}council letter <id>{RESET}")
+                continue
+            print(f"\n  {GOLD}⬡ COUNCIL LETTER READING{RESET}  {DIM}running via Ollama · local only{RESET}\n")
+            def _council_pcb(step: str) -> None:
+                msgs = {
+                    "decrypting":  f"  {DIM}⬡ decrypting seal…{RESET}",
+                    "deliberating": f"  {DIM}⬡ 14 agents deliberating…{RESET}",
+                }
+                print(msgs.get(step, f"  {DIM}{step}…{RESET}"))
+            _reading = _postal_council(_lid, _postal_user, cfg, show_progress_cb=_council_pcb)
+            print(_reading)
+            continue
+
+        elif cmd.startswith("seal export "):
+            if not _POSTAL_OK:
+                print(f"  {RED}Postal module unavailable.{RESET}")
+                continue
+            _lid = raw[12:].strip()
+            print(f"\n  {DIM}⬡ generating sealpack · decrypting · re-encrypting with passphrase…{RESET}")
+            _result = _postal_export(_lid)
+            if _result is None:
+                print(f"  {RED}Export failed — letter not found or cannot decrypt.{RESET}")
+                continue
+            _pack_path, _passphrase = _result
+            print(f"\n  {GOLD}⬡ SEALPACK EXPORTED{RESET}")
+            print(f"  {DIM}file:       {RESET}{_pack_path}")
+            print(f"  {GOLD}passphrase: {RESET}{BOLD}{_passphrase}{RESET}")
+            print(f"\n  {DIM}Share this passphrase with the recipient out-of-band.")
+            print(f"  It is shown once and never stored.{RESET}\n")
+            continue
+
+        elif cmd.startswith("seal import "):
+            if not _POSTAL_OK:
+                print(f"  {RED}Postal module unavailable.{RESET}")
+                continue
+            _pack_file = raw[12:].strip()
+            if not _pack_file:
+                print(f"  {LGOLD}Usage:{RESET}  {DIM}seal import <filepath>{RESET}")
+                continue
+            try:
+                _passphrase_input = input(f"  {DIM}Passphrase: {RESET}")
+            except KeyboardInterrupt:
+                print(f"\n  {DIM}[cancelled]{RESET}")
+                continue
+            print(f"  {DIM}⬡ verifying · decrypting · re-sealing locally…{RESET}")
+            _new_id = _postal_import(_pack_file, _passphrase_input)
+            if _new_id is None:
+                print(f"  {RED}Import failed — wrong passphrase or corrupted pack.{RESET}")
+            else:
+                print(f"  {GOLD}⬡ Sealed locally as:{RESET}  {LGOLD}{_new_id}{RESET}")
+            continue
+
+        elif cmd == "postal user" or cmd.startswith("postal user "):
+            _new_user = raw[12:].strip().lower() if cmd.startswith("postal user ") else ""
+            if not _new_user:
+                print(f"  {DIM}Current postal identity: {cfg.get('postal_user', 'joshua')}{RESET}")
+            else:
+                cfg["postal_user"] = _new_user
+                print(f"  {GOLD}⬡ Postal identity set to:{RESET}  {_new_user}")
             continue
 
         elif cmd == "strands" or cmd.startswith("strands "):

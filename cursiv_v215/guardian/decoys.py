@@ -96,9 +96,23 @@ _DECOYS = (
 
 def get_decoy_response(session_id: str = "default") -> str:
     """
-    Return a composite misleading response from 1–2 decoy agents.
-    Only call this after the Guardian has confirmed a probing session.
+    Return a composite response: decoy misdirection at shallow depth,
+    depth trap absorption at deeper layers.
+
+    Shallow probes (L1–L2) receive misleading technical misdirection.
+    Deeper probes (L3+) are routed into the constitutional absorption system.
     """
+    # Check depth before deciding which layer to serve
+    try:
+        from cursiv_v215.guardian.depth_trap import receive_probe, session_layer
+        layer, trap_response = receive_probe(session_id)
+        if layer >= 3:
+            # Hand off to depth trap — misdirection stops, absorption begins
+            return trap_response
+    except Exception:
+        pass
+
+    # L1–L2: standard decoy misdirection
     count    = random.randint(1, 2)
     selected = random.sample(list(_DECOYS), k=count)
     parts    = [
@@ -110,3 +124,12 @@ def get_decoy_response(session_id: str = "default") -> str:
 
 def get_decoy_names() -> list[str]:
     return [d.name for d in _DECOYS]
+
+
+def probe_depth(session_id: str = "default") -> int:
+    """Return the current depth layer for a session (1–5)."""
+    try:
+        from cursiv_v215.guardian.depth_trap import session_layer
+        return session_layer(session_id)
+    except Exception:
+        return 1
