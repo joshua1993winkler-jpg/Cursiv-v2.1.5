@@ -413,6 +413,48 @@ except Exception:
     def _board_whoami():       return None
     def _board_blast(t, s):    return (False, "board client unavailable")
 
+def _extract_blast_synthesis(full_text: str) -> str:
+    """
+    Pull just the final synthesis paragraph from a group_discovery stream.
+    Looks for the FINAL SYNTHESIS section; falls back to the last non-empty
+    paragraph if the marker isn't present.
+    """
+    FINAL_MARKER  = "FINAL SYNTHESIS — LOCAL COUNCIL"
+    END_MARKERS   = ["CURSIV BINARY SNAPSHOT", "█" * 10]
+
+    start = full_text.find(FINAL_MARKER)
+    if start != -1:
+        # Skip past header lines (═ rows and the marker itself)
+        content_start = start + len(FINAL_MARKER)
+        # skip decorator lines
+        while content_start < len(full_text) and full_text[content_start] in "═\n ─*":
+            nl = full_text.find("\n", content_start)
+            if nl == -1:
+                break
+            line = full_text[content_start:nl].strip("═─ *\n")
+            content_start = nl + 1
+            if line and not set(line).issubset(set("═─ *")):
+                content_start = full_text.find(line, start) + len(line)
+                break
+        # find end
+        end = len(full_text)
+        for em in END_MARKERS:
+            idx = full_text.find(em, content_start)
+            if idx != -1 and idx < end:
+                end = idx
+        extracted = full_text[content_start:end].strip(" \n─═*")
+        if extracted:
+            return extracted
+
+    # Fallback: last non-empty paragraph
+    paragraphs = [p.strip() for p in full_text.split("\n\n") if p.strip()]
+    # skip metadata-looking trailing paragraphs
+    for p in reversed(paragraphs):
+        if len(p) > 60 and not p.startswith("*[") and "SEED:" not in p:
+            return p
+    return full_text.strip()
+
+
 # ── Async Council — Option C parallel deliberation ───────────────────────────
 try:
     from cursiv_v215.council.async_council import (
@@ -1442,7 +1484,7 @@ def main() -> None:
                     except KeyboardInterrupt:
                         print(f"\n  {DIM}[interrupted]{RESET}")
                     print()
-                    cfg["_last_council_synthesis"] = full   # stored for blast
+                    cfg["_last_council_synthesis"] = _extract_blast_synthesis(full)
                     _session_append_cli(_raw_question, full, "group_discovery")
                     if _STRAND_OK and full and len(full) > 200:
                         _strand_save(
