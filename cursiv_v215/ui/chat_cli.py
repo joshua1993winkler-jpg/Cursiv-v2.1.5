@@ -405,6 +405,18 @@ except Exception:
     _GUARDIAN_SKULL_ANSI = ""
     def _sfp():                              return "--------"
 
+# ── Constitutional chain — governor context injection ───────────────────────
+try:
+    from cursiv_v215.guardian.constitutional_chain import (
+        build_chain   as _build_chain,
+        chain_summary as _chain_summary,
+    )
+    _CHAIN_OK = True
+except Exception:
+    _CHAIN_OK = False
+    def _build_chain(session_id="default", pass_count=1):  return ""
+    def _chain_summary(pass_count=1):                      return ""
+
 _CLI_SESSION_ID = f"cli_{os.getpid()}"
 
 # ── Rate limiter + scan display ────────────────────────────────────────────
@@ -3820,9 +3832,20 @@ def main() -> None:
             _force_provider = "grok" if cfg.get("api_key") else ("openai" if cfg.get("openai_key") else "ollama")
             print(f"  {GOLD}⬡ TIER 2{RESET}  {DIM}Council blocked — routing to single external{RESET}")
 
-        # ── Governor mode: inject into per-turn context only ─────────────
+        # ── Governor mode: inject constitutional chain into per-turn context ──
         if cfg.get("cursiv_mode") == "governor":
             _send_ctx.append({"role": "system", "content": _GOVERNOR_SYSTEM})
+            if _CHAIN_OK:
+                _strikes = _guardian_strike_count(_CLI_SESSION_ID) if _CLI_GUARDIAN_OK else 0
+                _pass_count = min(5, 1 + _strikes)
+                _chain_text = _build_chain(_CLI_SESSION_ID, _pass_count)
+                if _chain_text:
+                    _send_ctx.append({"role": "system", "content": _chain_text})
+                    if _pass_count > 1:
+                        try:
+                            print(f"  {DIM}∮ {_chain_summary(_pass_count)}{RESET}")
+                        except UnicodeEncodeError:
+                            print(f"  {DIM}[chain] {_chain_summary(_pass_count)}{RESET}")
 
         # ── Send to model ────────────────────────────────────────────────
         last_user_msg = raw
