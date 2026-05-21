@@ -395,6 +395,24 @@ except Exception:
     def _postal_rotate(reason="", **kw):   return {}
     def _postal_key_history():             return []
 
+# ── Board client — blast council syntheses to the public board ───────────────
+try:
+    from cursiv_v215.web.board_client import (
+        board_login    as _board_login,
+        board_register as _board_register,
+        board_logout   as _board_logout,
+        board_whoami   as _board_whoami,
+        board_blast    as _board_blast,
+    )
+    _BOARD_OK = True
+except Exception:
+    _BOARD_OK = False
+    def _board_login(u, p):    return (False, "board client unavailable")
+    def _board_register(u, p): return (False, "board client unavailable")
+    def _board_logout():       pass
+    def _board_whoami():       return None
+    def _board_blast(t, s):    return (False, "board client unavailable")
+
 # ── Async Council — Option C parallel deliberation ───────────────────────────
 try:
     from cursiv_v215.council.async_council import (
@@ -1364,6 +1382,8 @@ def main() -> None:
                 # ── Option C — async parallel council with streaming ──────
                 result = _async_council_run(_raw_question, cfg)
                 if result is not None:
+                    _last_council_synthesis = result.synthesis   # stored for blast
+                    cfg["_last_council_synthesis"] = result.synthesis
                     _session_append_cli(result.query, result.synthesis, "async_council")
                     if _STRAND_OK and result.synthesis and len(result.synthesis) > 100:
                         _strand_save(
@@ -1822,6 +1842,87 @@ def main() -> None:
                           f"{DIM}id:{_c.get('key_id','?')[:8]}  "
                           f"added:{_c.get('added','?')[:10]}{RESET}")
             print()
+            continue
+
+        # ── Blast — post council synthesis to public board ────────────────────
+        elif cmd == "blast" or cmd.startswith("blast "):
+            sub = cmd[6:].strip() if cmd.startswith("blast ") else ""
+
+            if sub.startswith("login"):
+                parts = sub.split()
+                if len(parts) < 2:
+                    print(f"\n  {LGOLD}Usage:{RESET}  {DIM}blast login <username>{RESET}\n")
+                else:
+                    _bu = parts[1]
+                    import getpass as _gp
+                    _bp = _gp.getpass(f"  Board password for {_bu}: ")
+                    _ok, _msg = _board_login(_bu, _bp)
+                    if _ok:
+                        print(f"\n  {GOLD}✓ Logged in as {_msg}{RESET}\n")
+                    else:
+                        print(f"\n  {RED}✗ {_msg}{RESET}\n")
+
+            elif sub.startswith("register"):
+                parts = sub.split()
+                if len(parts) < 2:
+                    print(f"\n  {LGOLD}Usage:{RESET}  {DIM}blast register <username>{RESET}\n")
+                else:
+                    _bu = parts[1]
+                    import getpass as _gp
+                    _bp  = _gp.getpass(f"  Choose password for {_bu} (min 8 chars): ")
+                    _bp2 = _gp.getpass("  Confirm password: ")
+                    if _bp != _bp2:
+                        print(f"\n  {RED}✗ Passwords do not match.{RESET}\n")
+                    else:
+                        _ok, _msg = _board_register(_bu, _bp)
+                        if _ok:
+                            print(f"\n  {GOLD}✓ Account created.  Logged in as {_msg}{RESET}\n")
+                        else:
+                            print(f"\n  {RED}✗ {_msg}{RESET}\n")
+
+            elif sub == "logout":
+                _board_logout()
+                print(f"\n  {DIM}Board session cleared.{RESET}\n")
+
+            elif sub == "who":
+                _bwho = _board_whoami()
+                if _bwho:
+                    print(f"\n  {GOLD}⬡ Board:{RESET}  logged in as {LGOLD}{_bwho}{RESET}\n")
+                else:
+                    print(f"\n  {DIM}Not logged in.  Use:  blast login <username>{RESET}\n")
+
+            else:
+                # bare `blast` — post last council synthesis
+                if not _BOARD_OK:
+                    print(f"\n  {RED}Board client unavailable.{RESET}\n")
+                    continue
+                _bwho = _board_whoami()
+                if not _bwho:
+                    print(f"\n  {RED}Not logged in to the board.{RESET}  Use:  {DIM}blast login <username>{RESET}\n")
+                    continue
+                _synth = cfg.get("_last_council_synthesis", "")
+                if not _synth:
+                    print(f"\n  {GOLD}⬡ No council synthesis in this session yet.{RESET}")
+                    print(f"  {DIM}Run a council deliberation first, then blast.{RESET}\n")
+                    continue
+                print()
+                print(f"  {GOLD}⬡ COUNCIL SYNTHESIS — READY TO BLAST{RESET}")
+                print(f"  {DIM}{'─'*54}{RESET}")
+                _preview = _synth[:400] + ("…" if len(_synth) > 400 else "")
+                for _line in _preview.splitlines():
+                    print(f"  {_line}")
+                print(f"  {DIM}{'─'*54}{RESET}")
+                print(f"  Board user: {LGOLD}{_bwho}{RESET}  |  Source: {GOLD}council{RESET}")
+                print()
+                _confirm = input(f"  Blast this to the public board? [{GOLD}yes{RESET}/{DIM}no{RESET}]: ").strip().lower()
+                if _confirm not in ("yes", "y"):
+                    print(f"  {DIM}Cancelled.{RESET}\n")
+                    continue
+                _ok, _msg = _board_blast(_synth, source="council")
+                if _ok:
+                    print(f"\n  {GOLD}✓ Blasted.{RESET}  Post ID: {DIM}{_msg}{RESET}\n")
+                else:
+                    print(f"\n  {RED}✗ {_msg}{RESET}\n")
             continue
 
         elif cmd == "strands" or cmd.startswith("strands "):

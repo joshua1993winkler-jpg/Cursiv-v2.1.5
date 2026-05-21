@@ -148,8 +148,16 @@ def me(authorization: str | None = Header(None)):
 
 
 @app.post("/api/blast", status_code=201)
-def blast(body: BlastRequest, authorization: str | None = Header(None)):
+def blast(
+    body: BlastRequest,
+    authorization:  str | None = Header(None),
+    x_cursiv_cli:   str | None = Header(None),
+):
     user = _require_auth(authorization)
+    # Council source only allowed from the CLI (X-Cursiv-CLI header)
+    # Web form cannot set this header — prevents fake council posts
+    if body.source == "council" and not x_cursiv_cli:
+        raise HTTPException(403, "Council posts must come from the Cursiv CLI")
     post = create_post(user["id"], user["username"], body.text, body.source)
     return post
 
