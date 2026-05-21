@@ -40,6 +40,12 @@ CONSTITUTIONAL_INVARIANTS = {
     "identity_drift_abort": MAX_IDENTITY_DRIFT_BEFORE_REVERT,
     "agents_require_academy": True,
     "production_requires_human_approval": True,
+    # Inference hierarchy — cannot be inverted by config or prompt.
+    # Ollama (local) is the foundation. External API keys unlock additional
+    # capability but never replace the local-first baseline.
+    "inference_hierarchy": "ollama_first",
+    "api_keys_are_upgrades_not_requirements": True,
+    "air_gap_capable": True,
 }
 
 SOURCE_REGISTRY_PRIORITY = {
