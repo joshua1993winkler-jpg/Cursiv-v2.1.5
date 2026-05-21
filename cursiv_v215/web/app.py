@@ -22,10 +22,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
 
 try:
-    from cursiv_v215.web.db   import init_db, create_user, get_user_by_username, get_user_by_id, create_post, get_posts, delete_post
+    from cursiv_v215.web.db   import init_db, create_user, get_user_by_username, get_user_by_id, create_post, get_posts, delete_post, count_posts_today
     from cursiv_v215.web.auth import hash_password, verify_password, create_token, decode_token
 except ImportError:
-    from db   import init_db, create_user, get_user_by_username, get_user_by_id, create_post, get_posts, delete_post
+    from db   import init_db, create_user, get_user_by_username, get_user_by_id, create_post, get_posts, delete_post, count_posts_today
     from auth import hash_password, verify_password, create_token, decode_token
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -154,10 +154,10 @@ def blast(
     x_cursiv_cli:   str | None = Header(None),
 ):
     user = _require_auth(authorization)
-    # Council source only allowed from the CLI (X-Cursiv-CLI header)
-    # Web form cannot set this header — prevents fake council posts
     if body.source == "council" and not x_cursiv_cli:
         raise HTTPException(403, "Council posts must come from the Cursiv CLI")
+    if count_posts_today(user["id"]) >= 4:
+        raise HTTPException(429, "Daily limit reached — 4 posts per day max")
     post = create_post(user["id"], user["username"], body.text, body.source)
     return post
 

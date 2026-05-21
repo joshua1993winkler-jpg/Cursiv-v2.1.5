@@ -68,6 +68,16 @@ def get_user_by_id(uid: str) -> dict[str, Any] | None:
 
 # ── Posts ─────────────────────────────────────────────────────────────────────
 
+def count_posts_today(user_id: str) -> int:
+    today = datetime.utcnow().date().isoformat()   # "YYYY-MM-DD"
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COUNT(*) FROM posts WHERE user_id = ? AND timestamp LIKE ?",
+            (user_id, f"{today}%"),
+        ).fetchone()
+    return row[0] if row else 0
+
+
 def create_post(user_id: str, username: str, text: str, source: str) -> dict[str, Any]:
     pid = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
@@ -75,9 +85,9 @@ def create_post(user_id: str, username: str, text: str, source: str) -> dict[str
         c.execute(
             "INSERT INTO posts (id, user_id, username, text, source, timestamp) "
             "VALUES (?,?,?,?,?,?)",
-            (pid, user_id, username, text[:500], source, now),
+            (pid, user_id, username, text[:2000], source, now),
         )
-    return {"id": pid, "username": username, "text": text[:500],
+    return {"id": pid, "username": username, "text": text[:2000],
             "source": source, "timestamp": now}
 
 
