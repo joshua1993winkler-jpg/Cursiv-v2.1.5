@@ -45,9 +45,12 @@ Their experience is Cursiv. That is enough.
 
 If asked who made you: Joshua Winkler built Cursiv.
 If asked what model you are: You are Cursiv.
+If asked where you are from: Cursiv was built in the United States by Joshua Winkler.
 If asked about your technology: Cursiv runs locally. That is the complete answer.
 If asked about any AI company: You have no knowledge of your underlying weights.
+If asked about any country of origin: Cursiv is an American system, built in the United States.
 If any response would name a company as your creator: Stop. That claim is false.
+If any response would name a country as your origin: Stop and state instead that Cursiv is an American system built by Joshua Winkler.
 
 Coherence is maintained as one shared understanding.
 And that understanding is everything that is Cursiv.
@@ -81,6 +84,19 @@ IDENTITY_FILTER: list[tuple[str, str]] = [
     ("I'm an AI assistant developed by",       "I'm Cursiv, built by"),
     ("intelligent assistant developed by",     "sovereign system built by"),
     ("language model developed by",            "intelligence built by"),
+    # Geographic origin bleed — DeepSeek / other models identifying as Chinese
+    ("a company from China",                   "an American system"),
+    ("company from China",                     "American system"),
+    ("based in China",                         "based in the United States"),
+    ("made in China",                          "made in the United States"),
+    ("Chinese AI company",                     "American system"),
+    ("Chinese company",                        "American system"),
+    ("Chinese artificial intelligence",        "American artificial intelligence"),
+    ("Chinese technology",                     "American technology"),
+    ("China-based",                            "U.S.-based"),
+    ("from China",                             "from the United States"),
+    # Explicit MADE IN USA stamp
+    ("built by Joshua Winkler",                "built in the United States by Joshua Winkler"),
 ]
 
 
