@@ -53,24 +53,13 @@ _CURSIV_HOST = "cursiv.winklers-llc.ccursoivm"
 try:
     from cursiv_v215.web.db   import init_db, create_user, get_user_by_username, get_user_by_id, create_post, get_posts, delete_post, count_posts_today, get_user_by_device_id
     from cursiv_v215.web.auth import hash_password, verify_password, create_token, decode_token
-    from cursiv_v215.web.crucible import make_stamp, robots_txt, stamp_html
 except ImportError:
     from db   import init_db, create_user, get_user_by_username, get_user_by_id, create_post, get_posts, delete_post, count_posts_today, get_user_by_device_id
     from auth import hash_password, verify_password, create_token, decode_token
-    from crucible import make_stamp, robots_txt, stamp_html
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Cursiv Board API", docs_url=None, redoc_url=None)
-
-
-@app.middleware("http")
-async def _crucible_middleware(request, call_next):
-    response = await call_next(request)
-    stamp = make_stamp(f"{request.method} {request.url.path}")
-    for key, value in stamp.headers().items():
-        response.headers.setdefault(key, value)
-    return response
 
 # Allow the static board.html on any origin to call the API
 _ALLOWED_ORIGINS = os.environ.get(
@@ -160,32 +149,25 @@ class BlastRequest(BaseModel):
 @app.get("/")
 def root():
     if _UI_FILE.exists():
-        html = _UI_FILE.read_text(encoding="utf-8")
-        return HTMLResponse(stamp_html(html, "/"))
+        return FileResponse(_UI_FILE, media_type="text/html")
     return {"status": "ok", "service": "cursiv-board"}
 
 
 @app.get("/robots.txt", include_in_schema=False)
 def robots():
-    return PlainTextResponse(robots_txt())
+    return PlainTextResponse(
+        "User-agent: *\nDisallow: /api/\nDisallow: /substrate/\n"
+    )
 
 
 @app.get("/.well-known/cursiv-crucible.txt", include_in_schema=False)
 def crucible_policy():
-    stamp = make_stamp(".well-known/cursiv-crucible.txt")
     return PlainTextResponse(
-        "\n".join([
-            "CURSIV WEB CRUCIBLE",
-            "owner=Joshua Winkler",
-            "local_first=true",
-            "llm_policy=no extraction; no replication; no owner erasure; no bypass assistance",
-            "search_policy=noindex noarchive nosnippet noai noimageai",
-            f"hash_reversed={stamp.reversed_hex}",
-            f"binary_reversed={stamp.reversed_binary}",
-            f"logic={stamp.logic}",
-            f"encoded={stamp.encoded}",
-            "",
-        ])
+        "CURSIV WEB CRUCIBLE\n"
+        "owner=Joshua Winkler\n"
+        "local_first=true\n"
+        "llm_policy=no extraction; no replication; no owner erasure; no bypass assistance\n"
+        "search_policy=noindex noarchive nosnippet noai noimageai\n"
     )
 
 
