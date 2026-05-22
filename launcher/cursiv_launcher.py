@@ -441,7 +441,7 @@ class CursivLauncher(QMainWindow):
 
         self.setWindowTitle("Cursiv")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
-        self.setFixedSize(QSize(420, 400))
+        self.setFixedSize(QSize(420, 520))
         self.setStyleSheet(QSS)
 
         self._build_ui()
