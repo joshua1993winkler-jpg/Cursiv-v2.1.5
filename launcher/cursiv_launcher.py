@@ -441,11 +441,12 @@ class CursivLauncher(QMainWindow):
 
         self.setWindowTitle("Cursiv")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Window)
-        self.setFixedSize(QSize(420, 520))
+        self.setFixedWidth(420)
         self.setStyleSheet(QSS)
 
         self._build_ui()
         self._build_tray()
+        self.adjustSize()
 
         screen = QApplication.primaryScreen().availableGeometry()
         self.move(
@@ -509,9 +510,9 @@ class CursivLauncher(QMainWindow):
         vlay.setSpacing(0)
 
         vlay.addWidget(TitleBar(self, self._username))
-        vlay.addStretch()
+        vlay.addSpacing(20)
         vlay.addLayout(self._build_center())
-        vlay.addStretch()
+        vlay.addSpacing(20)
         vlay.addWidget(self._build_footer())
 
     def _build_center(self) -> QVBoxLayout:
