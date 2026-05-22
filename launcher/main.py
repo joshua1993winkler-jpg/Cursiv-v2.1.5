@@ -30,6 +30,9 @@ if sys.platform == "win32":
 
 
 def main():
+    # ── --browser flag: open Substrate Browser directly, skip launcher ────
+    _browser_mode = "--browser" in sys.argv or "--substrate-browser" in sys.argv
+
     try:
         from PyQt6.QtWidgets import QApplication, QMessageBox
         from PyQt6.QtCore import Qt
@@ -44,6 +47,25 @@ def main():
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
+
+    if _browser_mode:
+        app = QApplication(sys.argv)
+        app.setApplicationName("Cursiv Substrate Browser")
+        app.setOrganizationName("Joshua Winkler")
+        try:
+            from cursiv_browser import CursivBrowser
+        except ImportError:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                None, "Cursiv Substrate Browser",
+                "PyQt6-WebEngine is not installed.\n\n"
+                "Run:  pip install PyQt6-WebEngine\nThen relaunch."
+            )
+            sys.exit(1)
+        window = CursivBrowser()
+        window.setWindowTitle("Cursiv Substrate Browser")
+        window.show()
+        sys.exit(app.exec())
 
     app = QApplication(sys.argv)
     app.setApplicationName("Cursiv")
