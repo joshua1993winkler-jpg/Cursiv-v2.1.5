@@ -26,14 +26,19 @@ Constitutional invariants (mirrors Cursiv core):
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 try:
-    from cursiv_v215.substrate.ruw       import RUWLayer, RUWAddress, ReservoirEngine
+    from cursiv_v215.substrate.ruw       import RUWLayer, RUWNode, RUWAddress, ReservoirEngine
     from cursiv_v215.substrate.curs_lang import CursLayer, AttractorNetwork, curs_encode, curs_decode
 except ImportError:
-    from ruw       import RUWLayer, RUWAddress, ReservoirEngine
+    from ruw       import RUWLayer, RUWNode, RUWAddress, ReservoirEngine
     from curs_lang import CursLayer, AttractorNetwork, curs_encode, curs_decode
+
+_CURSIV_DIR    = Path(__file__).resolve().parent.parent.parent / ".cursiv"
+_SUBSTRATE_DB  = _CURSIV_DIR / "substrate_layer.json"
 
 
 class SubstrateActivator:
@@ -60,6 +65,7 @@ class SubstrateActivator:
         self.engine   = ReservoirEngine(n=reservoir_size)
         self.attractor_net = AttractorNetwork(n=64)
         self._log:    list[dict[str, Any]] = []
+        self._load()
 
     def activate(
         self,
@@ -120,6 +126,7 @@ class SubstrateActivator:
             "constitutional":    self.CONSTITUTIONAL,
         }
         self._log.append({"node_id": node_id, "resonance": resonance, "source": source})
+        self.save()
         return result
 
     def weave(self, query: str, top_k: int = 5) -> list[tuple[str, float]]:
@@ -138,6 +145,58 @@ class SubstrateActivator:
 
     def history(self) -> list[dict[str, Any]]:
         return list(self._log)
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
+    def save(self) -> None:
+        """Persist RUW layer + attractor weights to disk."""
+        try:
+            _CURSIV_DIR.mkdir(parents=True, exist_ok=True)
+            nodes_data = {
+                nid: {
+                    "content":     n.content,
+                    "weight":      n.weight,
+                    "connections": n.connections,
+                    "state":       n.state,
+                }
+                for nid, n in self.layer.nodes.items()
+            }
+            data = {
+                "nodes":         nodes_data,
+                "attractor_W":   self.attractor_net.W,
+                "attractor_state": self.attractor_net.state,
+                "log":           self._log[-200:],   # keep last 200
+                "threshold":     self.layer.threshold,
+            }
+            _SUBSTRATE_DB.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _load(self) -> None:
+        """Restore RUW layer + attractor weights from disk."""
+        if not _SUBSTRATE_DB.exists():
+            return
+        try:
+            data = json.loads(_SUBSTRATE_DB.read_text(encoding="utf-8"))
+            self.layer.threshold = data.get("threshold", self.layer.threshold)
+            for nid, nd in data.get("nodes", {}).items():
+                node = RUWNode(
+                    node_id     = nid,
+                    content     = nd["content"],
+                    weight      = nd["weight"],
+                    connections = nd["connections"],
+                    state       = nd["state"],
+                )
+                self.layer.nodes[nid] = node
+            W = data.get("attractor_W")
+            if W and len(W) == self.attractor_net.n:
+                self.attractor_net.W = W
+            s = data.get("attractor_state")
+            if s and len(s) == self.attractor_net.n:
+                self.attractor_net.state = s
+            self._log = data.get("log", [])
+        except Exception:
+            pass
 
 
 # ── Singleton for CLI use ─────────────────────────────────────────────────────
