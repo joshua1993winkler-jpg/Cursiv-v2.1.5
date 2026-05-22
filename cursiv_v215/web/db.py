@@ -37,6 +37,15 @@ def init_db() -> None:
                 source    TEXT NOT NULL DEFAULT 'broadcast',
                 timestamp TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS fleet_nodes (
+                machine_id   TEXT PRIMARY KEY,
+                machine_name TEXT NOT NULL,
+                username     TEXT NOT NULL,
+                version      TEXT NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'idle',
+                ip_hint      TEXT,
+                last_seen    TEXT NOT NULL
+            );
         """)
         # migrate: add device_id if upgrading from older schema
         try:
@@ -130,3 +139,43 @@ def delete_post(post_id: str, user_id: str) -> bool:
             "DELETE FROM posts WHERE id = ? AND user_id = ?", (post_id, user_id)
         )
     return cur.rowcount > 0
+
+
+# ── Fleet nodes ───────────────────────────────────────────────────────────────
+
+def upsert_fleet_node(
+    machine_id:   str,
+    machine_name: str,
+    username:     str,
+    version:      str,
+    status:       str,
+    ip_hint:      str | None = None,
+) -> None:
+    now = datetime.utcnow().isoformat()
+    with _conn() as c:
+        c.execute(
+            """
+            INSERT INTO fleet_nodes
+                (machine_id, machine_name, username, version, status, ip_hint, last_seen)
+            VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(machine_id) DO UPDATE SET
+                machine_name = excluded.machine_name,
+                username     = excluded.username,
+                version      = excluded.version,
+                status       = excluded.status,
+                ip_hint      = excluded.ip_hint,
+                last_seen    = excluded.last_seen
+            """,
+            (machine_id, machine_name, username, version, status, ip_hint, now),
+        )
+
+
+def get_fleet_nodes(since_minutes: int = 10) -> list[dict[str, Any]]:
+    cutoff = (datetime.utcnow() - timedelta(minutes=since_minutes)).isoformat()
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT machine_id, machine_name, username, version, status, ip_hint, last_seen "
+            "FROM fleet_nodes WHERE last_seen >= ? ORDER BY last_seen DESC",
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]

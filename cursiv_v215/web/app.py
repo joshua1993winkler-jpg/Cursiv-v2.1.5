@@ -33,14 +33,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, field_validator
 
-_WEB_DIR = Path(__file__).parent
-_UI_FILE = _WEB_DIR / "substrate_ui.html"
+_WEB_DIR     = Path(__file__).parent
+_UI_FILE     = _WEB_DIR / "substrate_ui.html"
+_FLEET_TOKEN = os.environ.get("CURSIV_FLEET_TOKEN", "")
 
 try:
     from cursiv_v215.web.db   import (
         init_db, create_user, get_user_by_username, get_user_by_id,
         get_user_by_device_id, create_post, get_posts, delete_post,
-        count_posts_today,
+        count_posts_today, upsert_fleet_node, get_fleet_nodes,
     )
     from cursiv_v215.web.auth import (
         hash_password, verify_password,
@@ -51,7 +52,7 @@ except ImportError:
     from db   import (
         init_db, create_user, get_user_by_username, get_user_by_id,
         get_user_by_device_id, create_post, get_posts, delete_post,
-        count_posts_today,
+        count_posts_today, upsert_fleet_node, get_fleet_nodes,
     )
     from auth import (
         hash_password, verify_password,
@@ -323,3 +324,55 @@ def substrate_address(node_id: str):
         "depth":       node.state.get("depth", 0) if node else None,
         "connections": len(node.connections) if node else 0,
     }
+
+
+# ── Fleet relay ───────────────────────────────────────────────────────────────
+
+def _check_fleet_token(token: str | None) -> None:
+    if not _FLEET_TOKEN or token != _FLEET_TOKEN:
+        raise HTTPException(403, "Fleet token required")
+
+
+class HeartbeatRequest(BaseModel):
+    machine_id:   str
+    machine_name: str
+    username:     str
+    version:      str
+    status:       str = "idle"
+    ip_hint:      str | None = None
+
+    @field_validator("machine_id", "machine_name", "username", "version")
+    @classmethod
+    def _no_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Field cannot be empty")
+        return v[:128]
+
+    @field_validator("status")
+    @classmethod
+    def _valid_status(cls, v: str) -> str:
+        return v if v in ("active", "idle", "tray") else "idle"
+
+
+@app.post("/remote/heartbeat")
+def remote_heartbeat(
+    body:           HeartbeatRequest,
+    x_fleet_token:  str | None = Header(None),
+):
+    _check_fleet_token(x_fleet_token)
+    upsert_fleet_node(
+        body.machine_id, body.machine_name, body.username,
+        body.version, body.status, body.ip_hint,
+    )
+    return {"ok": True}
+
+
+@app.get("/remote/fleet")
+def remote_fleet(
+    x_fleet_token: str | None = Header(None),
+    since:         int        = Query(default=10, ge=1, le=1440),
+):
+    _check_fleet_token(x_fleet_token)
+    nodes = get_fleet_nodes(since_minutes=since)
+    return {"nodes": nodes, "count": len(nodes)}

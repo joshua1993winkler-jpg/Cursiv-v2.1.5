@@ -13,16 +13,20 @@ Improvements over v1:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import platform
 import socket
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -53,9 +57,17 @@ _WATCHDOG_MS     = 3_000         # ms between app-health checks
 _POLL_DEADLINE_S = 30            # seconds to wait for app to bind its port
 
 # ── Update checker ─────────────────────────────────────────────────────────────
-_CURRENT_VERSION   = "3.14-U02"
+_CURRENT_VERSION   = "3.14-U03"
 _GITHUB_API        = "https://api.github.com/repos/joshua1993winkler-jpg/Cursiv/releases/latest"
 _GITHUB_RELEASES   = "https://github.com/joshua1993winkler-jpg/Cursiv/releases"
+
+# ── Fleet dashboard ────────────────────────────────────────────────────────────
+_RELAY_URL    = os.environ.get("CURSIV_RELAY_URL",    "").rstrip("/")
+_FLEET_TOKEN  = os.environ.get("CURSIV_FLEET_TOKEN",  "")
+_MACHINE_NAME = platform.node()
+_MACHINE_ID   = hashlib.sha256(
+    f"cursiv.local.{_MACHINE_NAME}.{os.environ.get('USERNAME', '')}".encode()
+).hexdigest()[:24]
 
 # ── Ollama ────────────────────────────────────────────────────────────────────
 _OLLAMA_INSTALLER_URL = "https://ollama.com/download/OllamaSetup.exe"
@@ -377,6 +389,193 @@ class UpdateDialog(QDialog):
             self._dl_btn.setEnabled(True)
 
 
+# ── Fleet dashboard ───────────────────────────────────────────────────────────
+
+def _fleet_age_label(last_seen_iso: str) -> str:
+    try:
+        ts  = datetime.fromisoformat(last_seen_iso)
+        age = (datetime.utcnow() - ts).total_seconds()
+        if age < 90:
+            return "just now"
+        if age < 3600:
+            return f"{int(age // 60)}m ago"
+        return f"{int(age // 3600)}h ago"
+    except Exception:
+        return last_seen_iso
+
+
+def _fleet_dot(last_seen_iso: str) -> tuple[str, str]:
+    """Returns (dot_char, color) for a status indicator."""
+    try:
+        ts  = datetime.fromisoformat(last_seen_iso)
+        age = (datetime.utcnow() - ts).total_seconds()
+        if age < 120:
+            return "●", "#44cc66"
+        if age < 600:
+            return "●", "#e8a020"
+        return "●", "#444466"
+    except Exception:
+        return "●", "#444466"
+
+
+class FleetDialog(QDialog):
+    """Fleet Dashboard — shows all Cursiv instances currently online."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Cursiv Fleet Dashboard")
+        self.setFixedWidth(560)
+        self.setStyleSheet(f"background: {BG}; color: {SILVER};")
+
+        self._nodes: list[dict] = []
+        self._error = ""
+
+        vlay = QVBoxLayout(self)
+        vlay.setContentsMargins(20, 20, 20, 20)
+        vlay.setSpacing(12)
+
+        header = QLabel("⬢  Fleet Dashboard")
+        header.setStyleSheet(f"color: {GOLD}; font-size: 14px; font-weight: 700;")
+        vlay.addWidget(header)
+
+        self._sub = QLabel("Machines that have checked in recently")
+        self._sub.setStyleSheet(f"color: {SILV2}; font-size: 11px;")
+        vlay.addWidget(self._sub)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFixedHeight(280)
+        self._scroll.setStyleSheet(
+            f"QScrollArea {{ background: {BG2}; border: 1px solid {BORDER}; border-radius: 6px; }}"
+        )
+        self._cards = QWidget()
+        self._cards.setStyleSheet(f"background: {BG2};")
+        self._cards_lay = QVBoxLayout(self._cards)
+        self._cards_lay.setContentsMargins(8, 8, 8, 8)
+        self._cards_lay.setSpacing(6)
+        self._scroll.setWidget(self._cards)
+        vlay.addWidget(self._scroll)
+
+        btn_row = QHBoxLayout()
+        self._refresh_btn = QPushButton("Refresh")
+        self._refresh_btn.setFixedHeight(28)
+        self._refresh_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._refresh_btn.setStyleSheet(
+            f"background: #2255DD; color: #fff; border-radius: 4px;"
+            " font-size: 11px; font-weight: 600; padding: 2px 16px;"
+        )
+        self._refresh_btn.clicked.connect(self._fetch)
+        btn_row.addWidget(self._refresh_btn)
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        close_btn.setFixedHeight(28)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setStyleSheet(
+            f"background: {BG2}; color: {SILV2}; border: 1px solid {BORDER};"
+            " border-radius: 4px; font-size: 11px; padding: 2px 16px;"
+        )
+        close_btn.clicked.connect(self.accept)
+        btn_row.addWidget(close_btn)
+        vlay.addLayout(btn_row)
+
+        self._fetch()
+
+        # Auto-refresh every 30s while open
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._fetch)
+        self._timer.start(30_000)
+
+    def _fetch(self):
+        self._refresh_btn.setEnabled(False)
+        self._refresh_btn.setText("Refreshing…")
+        threading.Thread(target=self._do_fetch, daemon=True).start()
+
+    def _do_fetch(self):
+        if not _RELAY_URL or not _FLEET_TOKEN:
+            QTimer.singleShot(0, lambda: self._apply([], "CURSIV_RELAY_URL or CURSIV_FLEET_TOKEN not set in secrets.bat"))
+            return
+        try:
+            req = urllib.request.Request(
+                f"{_RELAY_URL}/remote/fleet",
+                headers={"X-Fleet-Token": _FLEET_TOKEN},
+            )
+            with urllib.request.urlopen(req, timeout=8) as r:
+                data = json.loads(r.read().decode())
+            nodes = data.get("nodes", [])
+            QTimer.singleShot(0, lambda n=nodes: self._apply(n, ""))
+        except Exception as exc:
+            QTimer.singleShot(0, lambda e=str(exc): self._apply([], e))
+
+    def _apply(self, nodes: list, error: str):
+        self._refresh_btn.setEnabled(True)
+        self._refresh_btn.setText("Refresh")
+        self._nodes = nodes
+        self._error = error
+
+        # Clear cards
+        while self._cards_lay.count():
+            item = self._cards_lay.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        if error:
+            lbl = QLabel(f"⚠  {error}")
+            lbl.setStyleSheet(f"color: #e8a020; font-size: 11px; padding: 8px;")
+            lbl.setWordWrap(True)
+            self._cards_lay.addWidget(lbl)
+            self._sub.setText("Could not reach relay")
+            return
+
+        if not nodes:
+            lbl = QLabel("No machines online in the last 10 minutes.")
+            lbl.setStyleSheet(f"color: {SILV2}; font-size: 11px; padding: 8px;")
+            self._cards_lay.addWidget(lbl)
+            self._sub.setText("No machines online")
+            return
+
+        online = sum(1 for n in nodes if _fleet_dot(n["last_seen"])[1] == "#44cc66")
+        self._sub.setText(f"{len(nodes)} machine{'s' if len(nodes) != 1 else ''} checked in  •  {online} online now")
+
+        for node in nodes:
+            dot, col = _fleet_dot(node["last_seen"])
+            card = QWidget()
+            card.setStyleSheet(
+                f"background: {BG}; border: 1px solid {BORDER}; border-radius: 6px;"
+            )
+            row = QHBoxLayout(card)
+            row.setContentsMargins(12, 8, 12, 8)
+            row.setSpacing(12)
+
+            dot_lbl = QLabel(dot)
+            dot_lbl.setStyleSheet(f"color: {col}; font-size: 10px; background: transparent; border: none;")
+            dot_lbl.setFixedWidth(12)
+            row.addWidget(dot_lbl)
+
+            name_lbl = QLabel(f"<b>{node['machine_name']}</b>")
+            name_lbl.setStyleSheet(f"color: {SILVER}; font-size: 12px; background: transparent; border: none;")
+            row.addWidget(name_lbl, 2)
+
+            status_lbl = QLabel(node.get("status", "idle").upper())
+            status_lbl.setStyleSheet(
+                f"color: {col}; font-size: 9px; font-weight: 600; "
+                f"background: transparent; border: none; letter-spacing: 1px;"
+            )
+            row.addWidget(status_lbl, 1)
+
+            ver_lbl = QLabel(node.get("version", ""))
+            ver_lbl.setStyleSheet(f"color: {SILV2}; font-size: 10px; background: transparent; border: none;")
+            row.addWidget(ver_lbl, 1)
+
+            age_lbl = QLabel(_fleet_age_label(node["last_seen"]))
+            age_lbl.setStyleSheet(f"color: {SILV2}; font-size: 10px; background: transparent; border: none;")
+            age_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            row.addWidget(age_lbl, 1)
+
+            self._cards_lay.addWidget(card)
+
+        self._cards_lay.addStretch()
+
+
 # ── Title bar ─────────────────────────────────────────────────────────────────
 
 class TitleBar(QWidget):
@@ -469,6 +668,10 @@ class CursivLauncher(QMainWindow):
         self._watchdog = QTimer(self)
         self._watchdog.timeout.connect(self._check_app_health)
         self._watchdog.start(_WATCHDOG_MS)
+
+        # Fleet heartbeat — fires if relay URL + token are configured
+        if _RELAY_URL and _FLEET_TOKEN:
+            QTimer.singleShot(3000, self._start_fleet_heartbeat)
 
     # ── Cleanup (connected to aboutToQuit) ────────────────────────────────
 
@@ -721,6 +924,40 @@ class CursivLauncher(QMainWindow):
             self._csb_btn.clicked.connect(self._install_csb)
         csb_lay.addWidget(self._csb_btn)
         col.addWidget(csb_box)
+
+        # ── Fleet strip (only when relay is configured) ───────────────────
+        if _RELAY_URL and _FLEET_TOKEN:
+            fleet_box = QWidget()
+            fleet_box.setStyleSheet(
+                "background: #0a0a1a; border: 1px solid #1a1a3a; border-radius: 6px;"
+            )
+            fleet_lay = QHBoxLayout(fleet_box)
+            fleet_lay.setContentsMargins(12, 7, 12, 7)
+            fleet_lay.setSpacing(10)
+
+            self._fleet_lbl = QLabel("⬢  Fleet — connecting…")
+            self._fleet_lbl.setStyleSheet(
+                "color: #5566aa; font-size: 11px; background: transparent; border: none;"
+            )
+            fleet_lay.addWidget(self._fleet_lbl, 1)
+
+            fleet_btn = QPushButton("View Fleet")
+            fleet_btn.setFixedHeight(24)
+            fleet_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            fleet_btn.setToolTip("Open the Fleet Dashboard — see all your machines")
+            fleet_btn.setStyleSheet("""
+                QPushButton {
+                    background: #1a1a3a; color: #8899cc;
+                    font-size: 10px; font-weight: 600;
+                    border: 1px solid #2a2a5a; border-radius: 4px;
+                    padding: 1px 8px;
+                }
+                QPushButton:hover   { background: #2a2a5a; }
+                QPushButton:pressed { background: #0a0a1a; }
+            """)
+            fleet_btn.clicked.connect(self._show_fleet)
+            fleet_lay.addWidget(fleet_btn)
+            col.addWidget(fleet_box)
 
         return col
 
@@ -1171,6 +1408,54 @@ class CursivLauncher(QMainWindow):
                 f"Could not complete installation:\n\n{err}"
             )
 
+    # ── Fleet heartbeat + dashboard ───────────────────────────────────────
+
+    def _start_fleet_heartbeat(self):
+        self._send_heartbeat()          # immediate first ping
+        threading.Thread(target=self._heartbeat_loop, daemon=True).start()
+
+    def _heartbeat_loop(self):
+        while True:
+            time.sleep(60)
+            self._send_heartbeat()
+
+    def _send_heartbeat(self):
+        if not _RELAY_URL or not _FLEET_TOKEN:
+            return
+        status = "active" if self._app_alive else "idle"
+        payload = json.dumps({
+            "machine_id":   _MACHINE_ID,
+            "machine_name": _MACHINE_NAME,
+            "username":     self._username,
+            "version":      _CURRENT_VERSION,
+            "status":       status,
+        }).encode()
+        try:
+            req = urllib.request.Request(
+                f"{_RELAY_URL}/remote/heartbeat",
+                data=payload,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Fleet-Token": _FLEET_TOKEN,
+                },
+            )
+            urllib.request.urlopen(req, timeout=8)
+            QTimer.singleShot(0, self._fleet_ping_ok)
+        except Exception:
+            pass
+
+    def _fleet_ping_ok(self):
+        if hasattr(self, "_fleet_lbl"):
+            self._fleet_lbl.setText("⬢  Fleet — this machine online")
+            self._fleet_lbl.setStyleSheet(
+                "color: #44cc66; font-size: 11px; background: transparent; border: none;"
+            )
+
+    def _show_fleet(self):
+        dlg = FleetDialog(self)
+        dlg.exec()
+
     # ── Tray ──────────────────────────────────────────────────────────────
 
     def _build_tray(self):
@@ -1217,6 +1502,11 @@ class CursivLauncher(QMainWindow):
         else:
             substrate_act.triggered.connect(self._install_csb)
         menu.addAction(substrate_act)
+
+        if _RELAY_URL and _FLEET_TOKEN:
+            fleet_act = QAction("⬢  Fleet Dashboard", self)
+            fleet_act.triggered.connect(self._show_fleet)
+            menu.addAction(fleet_act)
 
         menu.addSeparator()
         quit_act = QAction("Quit", self)
