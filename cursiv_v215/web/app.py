@@ -24,6 +24,7 @@ Routes:
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets as _secrets_mod
 from pathlib import Path
@@ -42,6 +43,8 @@ try:
         init_db, create_user, get_user_by_username, get_user_by_id,
         get_user_by_device_id, create_post, get_posts, delete_post,
         count_posts_today, upsert_fleet_node, get_fleet_nodes,
+        create_fleet_token, get_fleet_token_by_hash, list_fleet_tokens,
+        deactivate_fleet_token,
     )
     from cursiv_v215.web.auth import (
         hash_password, verify_password,
@@ -53,6 +56,8 @@ except ImportError:
         init_db, create_user, get_user_by_username, get_user_by_id,
         get_user_by_device_id, create_post, get_posts, delete_post,
         count_posts_today, upsert_fleet_node, get_fleet_nodes,
+        create_fleet_token, get_fleet_token_by_hash, list_fleet_tokens,
+        deactivate_fleet_token,
     )
     from auth import (
         hash_password, verify_password,
@@ -328,9 +333,32 @@ def substrate_address(node_id: str):
 
 # ── Fleet relay ───────────────────────────────────────────────────────────────
 
-def _check_fleet_token(token: str | None) -> None:
-    if not _FLEET_TOKEN or token != _FLEET_TOKEN:
-        raise HTTPException(403, "Fleet token required")
+def _validate_fleet_token(token: str | None) -> tuple[bool, bool]:
+    """Returns (is_valid, is_owner). Owner = master env token. Command user = DB token."""
+    if not token:
+        return False, False
+    if _FLEET_TOKEN and token == _FLEET_TOKEN:
+        return True, True
+    h = hashlib.sha256(token.encode()).hexdigest()
+    row = get_fleet_token_by_hash(h)
+    if row:
+        return True, False
+    return False, False
+
+
+def _require_fleet(token: str | None) -> bool:
+    """Raise 403 if not a valid command-access token. Returns True if owner."""
+    valid, is_owner = _validate_fleet_token(token)
+    if not valid:
+        raise HTTPException(403, "Command access required")
+    return is_owner
+
+
+def _require_owner(token: str | None) -> None:
+    """Raise 403 unless token is the master owner token."""
+    _, is_owner = _validate_fleet_token(token)
+    if not is_owner:
+        raise HTTPException(403, "Owner access required")
 
 
 class HeartbeatRequest(BaseModel):
@@ -360,7 +388,7 @@ def remote_heartbeat(
     body:           HeartbeatRequest,
     x_fleet_token:  str | None = Header(None),
 ):
-    _check_fleet_token(x_fleet_token)
+    _require_fleet(x_fleet_token)
     upsert_fleet_node(
         body.machine_id, body.machine_name, body.username,
         body.version, body.status, body.ip_hint,
@@ -373,6 +401,47 @@ def remote_fleet(
     x_fleet_token: str | None = Header(None),
     since:         int        = Query(default=10, ge=1, le=1440),
 ):
-    _check_fleet_token(x_fleet_token)
+    _require_fleet(x_fleet_token)
     nodes = get_fleet_nodes(since_minutes=since)
     return {"nodes": nodes, "count": len(nodes)}
+
+
+# ── Command access management (owner only) ────────────────────────────────────
+
+class AddCommandUserRequest(BaseModel):
+    label: str
+
+    @field_validator("label")
+    @classmethod
+    def _clean(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) > 64:
+            raise ValueError("Label must be 1–64 characters")
+        return v
+
+
+@app.get("/remote/fleet/tokens")
+def fleet_list_tokens(x_fleet_token: str | None = Header(None)):
+    _require_owner(x_fleet_token)
+    return {"tokens": list_fleet_tokens()}
+
+
+@app.post("/remote/fleet/tokens", status_code=201)
+def fleet_add_token(
+    body:          AddCommandUserRequest,
+    x_fleet_token: str | None = Header(None),
+):
+    _require_owner(x_fleet_token)
+    result = create_fleet_token(body.label, added_by="owner")
+    return result   # includes raw token — shown once, not stored
+
+
+@app.delete("/remote/fleet/tokens/{token_id}")
+def fleet_revoke_token(
+    token_id:      str,
+    x_fleet_token: str | None = Header(None),
+):
+    _require_owner(x_fleet_token)
+    if not deactivate_fleet_token(token_id):
+        raise HTTPException(404, "Token not found")
+    return {"ok": True}

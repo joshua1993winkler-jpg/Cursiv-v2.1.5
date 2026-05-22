@@ -4,6 +4,8 @@ Users + posts. No ORM — plain sqlite3, no extra dependencies.
 """
 from __future__ import annotations
 
+import hashlib
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime, timedelta
@@ -45,6 +47,14 @@ def init_db() -> None:
                 status       TEXT NOT NULL DEFAULT 'idle',
                 ip_hint      TEXT,
                 last_seen    TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS fleet_tokens (
+                id          TEXT PRIMARY KEY,
+                token_hash  TEXT NOT NULL UNIQUE,
+                label       TEXT NOT NULL,
+                added_by    TEXT NOT NULL,
+                added_at    TEXT NOT NULL,
+                active      INTEGER NOT NULL DEFAULT 1
             );
         """)
         # migrate: add device_id if upgrading from older schema
@@ -179,3 +189,49 @@ def get_fleet_nodes(since_minutes: int = 10) -> list[dict[str, Any]]:
             (cutoff,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── Fleet tokens (command access) ─────────────────────────────────────────────
+
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def create_fleet_token(label: str, added_by: str) -> dict[str, Any]:
+    """Generate a new command-access token. Returns dict with raw 'token' — store it once."""
+    raw   = secrets.token_hex(32)
+    tid   = str(uuid.uuid4())
+    now   = datetime.utcnow().isoformat()
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO fleet_tokens (id, token_hash, label, added_by, added_at, active) "
+            "VALUES (?,?,?,?,?,1)",
+            (tid, _hash_token(raw), label.strip()[:64], added_by.strip()[:32], now),
+        )
+    return {"id": tid, "token": raw, "label": label, "added_by": added_by, "added_at": now}
+
+
+def get_fleet_token_by_hash(token_hash: str) -> dict[str, Any] | None:
+    with _conn() as c:
+        row = c.execute(
+            "SELECT * FROM fleet_tokens WHERE token_hash = ? AND active = 1",
+            (token_hash,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def list_fleet_tokens() -> list[dict[str, Any]]:
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT id, label, added_by, added_at, active FROM fleet_tokens "
+            "WHERE active = 1 ORDER BY added_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def deactivate_fleet_token(token_id: str) -> bool:
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE fleet_tokens SET active = 0 WHERE id = ?", (token_id,)
+        )
+    return cur.rowcount > 0
